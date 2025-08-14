@@ -1,2 +1,1 @@
-# boost self supervised dataset distillation
-
+This repository is an implementation of the paper "Boost Self-Supervised Dataset Distillation via Parameterization, Predefined Augmentation, and Approximation" by Sheng-Feng Yu, Jia-Jiun Yao, Wei-Chen Chiu (https://arxiv.org/abs/2507.21455v2).
