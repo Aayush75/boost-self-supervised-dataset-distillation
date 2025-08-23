@@ -1,0 +1,41 @@
+project_name: "boost-self-supervised-dataset-distillation"
+experiment_name: "cifar100_distillation"
+
+data:
+  name: "CIFAR100"
+  path: "./data"
+  resolution: [3,32,32]
+
+distillation:
+  storage_budget_N: 100
+  num_distilled_images_m: 100
+
+  optimizer:
+    name: "AdamW"
+    lr: 0.001
+    decay_type: "linear"
+
+  steps: 30000
+
+parametrization:
+  image_bases_U: 200
+  repr_bases_V: 200
+
+  image_basis:size: [3,16,16]
+  upsampling_scale: 2
+
+models:
+  teacher:
+    arch: "ResNet18"
+    path: "./teacher_models/resnet18_barlow_twins_cifar100.pth"
+    feature_dim: 512
+
+  inner_cnn:
+    channels: [128,256,512]
+    feature_dim: 512
+  
+  approximation_mlp:
+    hidden_dim: 4
+
+saving:
+  distilled_assets_dir: "./distilled_assets"
