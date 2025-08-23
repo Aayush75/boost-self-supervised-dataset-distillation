@@ -18,7 +18,7 @@ class DistilledData(nn.Module):
         super().__init__()
         self.config = config
         self.upsampler = nn.Upsample(
-            size=(config['image_size'], config['image_size']),
+            size=(config['data']['resolution'][1], config['data']['resolution'][2]),
             mode='bilinear',
             align_corners=False
         )
@@ -34,9 +34,9 @@ class DistilledData(nn.Module):
         
     def reconstruct_images(self):
         images_small = self.C_x @ self.B_x
-        num_images = self.config['num_distill_images_m']
-        ch = 3
-        sz = self.config['images_bases_size']
+        num_images = self.config['distillation']['num_distilled_images_m']
+        ch = self.config['data']['resolution'][0]
+        sz = self.config['parametrization']['image_basis_size']
         images_small = images_small.view(num_images, ch, sz, sz)
         return self.upsampler(images_small)
 
@@ -51,20 +51,20 @@ def distill():
         config = yaml.safe_load(f)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
-    os.makedirs(config['distilled_asset_dir'], exist_ok=True)
+    os.makedirs(config['saving']['distilled_assets_dir'], exist_ok=True)
     
-    train_dataset, _ = get_dataset(config['source_dataset'])
-    teacher_model = get_teacher_model(config['teacher_model_path'], config['repr_dim']).to(device)
+    train_dataset, _ = get_dataset(config['data']['name'])
+    teacher_model = get_teacher_model(config['models']['teacher']['path'], config['models']['teacher']['feature_dim']).to(device)
     
     print("Initializing distilled data parameters")
     all_images_np = extract_all_data(train_dataset)
     all_images_torch = torch.from_numpy(all_images_np)
     
-    downsampler = nn.Upsample(size=(config['images_bases_size'], config['images_bases_size']), mode='bilinear')
+    downsampler = nn.Upsample(size=(config['parametrization']['image_basis_size'], config['parametrization']['image_basis_size']), mode='bilinear')
     all_images_down_flat = downsampler(all_images_torch).view(len(all_images_np), -1).numpy()
-    pca_img = PCA(n_components=config['num_image_bases_U'], random_state=42).fit(all_images_down_flat)
+    pca_img = PCA(n_components=config['parametrization']['image_bases_U'], random_state=42).fit(all_images_down_flat)
     B_x_init = pca_img.components_
-    sample_indices = np.random.choice(len(all_images_np), config['num_distill_images_m'], replace=False)
+    sample_indices = np.random.choice(len(all_images_np), config['distillation']['num_distilled_images_m'], replace=False)
     C_x_init = pca_img.transform(all_images_down_flat[sample_indices])
 
     all_reprs_np = []
@@ -73,7 +73,7 @@ def distill():
         for images, _ in tqdm(repr_loader, desc="Generating all teacher representations for PCA"):
             all_reprs_np.append(teacher_model(images.to(device)).cpu().numpy())
     all_reprs_np = np.concatenate(all_reprs_np)
-    pca_repr = PCA(n_components=config['num_repr_bases_V'], random_state=42).fit(all_reprs_np)
+    pca_repr = PCA(n_components=config['parametrization']['repr_bases_V'], random_state=42).fit(all_reprs_np)
     B_y_init = pca_repr.components_
     C_y_init = pca_repr.transform(all_reprs_np[sample_indices])
         
@@ -90,21 +90,21 @@ def distill():
     init_params = {"B_x": B_x_init, "B_y": B_y_init, "C_x": C_x_init, "C_y": C_y_init, "C_aug_y": C_aug_y_init}
     distilled_data = DistilledData(init_params, config).to(device)
     
-    optimizer_distill = torch.optim.AdamW(distilled_data.parameters(), lr=config['lr_distill'])
-    lr_schedule = lambda step: 1.0 - step / config['distill_steps']
+    optimizer_distill = torch.optim.AdamW(distilled_data.parameters(), lr=config['distillation']['optimizer']['lr'])
+    lr_schedule = lambda step: 1.0 - step / config['distillation']['steps']
     scheduler = LambdaLR(optimizer_distill, lr_lambda=lr_schedule)
     
-    model_pool = [InnerCNN(feature_dim=config['repr_dim']).to(device) for _ in range(config['model_pool_size_L'])]
+    model_pool = [InnerCNN(feature_dim=config['models']['inner_cnn']['feature_dim']).to(device) for _ in range(config['model_pool']['size_L'])]
     optimizers_pool = [torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9) for model in model_pool]
-    step_counters = [0] * config['model_pool_size_L']
+    step_counters = [0] * config['model_pool']['size_L']
     outer_loss_loader = DataLoader(train_dataset, batch_size=512, shuffle=True, num_workers=4)
     real_images_outer = next(iter(outer_loss_loader))[0].to(device)
     with torch.no_grad():
         real_reprs_target = teacher_model(real_images_outer)
         
-    for step in tqdm(range(config['distill_steps']), desc="Distilling Dataset"):
+    for step in tqdm(range(config['distillation']['steps']), desc="Distilling Dataset"):
         distilled_data.train()
-        pool_idx = np.random.randint(config['model_pool_size_L'])
+        pool_idx = np.random.randint(config['model_pool']['size_L'])
         inner_model = model_pool[pool_idx]
         inner_model.eval()
         
@@ -122,10 +122,6 @@ def distill():
         
         optimizer_distill.zero_grad()
         loss_outer.backward()
-        optimizer_distill.step()
-        scheduler.step()
-        
-        inner_model.train()
         optimizer_distill.step()
         scheduler.step()
         
@@ -150,8 +146,8 @@ def distill():
         optimizer_inner.step()
 
         step_counters[pool_idx] += 1
-        if step_counters[pool_idx] >= config['inner_loop_steps_Z']:
-            model_pool[pool_idx] = InnerCNN(feature_dim=config['repr_dim']).to(device)
+        if step_counters[pool_idx] >= config['model_pool']['inner_loop_steps_Z']:
+            model_pool[pool_idx] = InnerCNN(feature_dim=config['models']['inner_cnn']['feature_dim']).to(device)
             optimizers_pool[pool_idx] = torch.optim.SGD(model_pool[pool_idx].parameters(), lr=0.1, momentum=0.9)
             step_counters[pool_idx] = 0
         
@@ -159,8 +155,8 @@ def distill():
     distilled_data.eval()
     approx_networks = [
         ApproximationMLP(
-            num_repr_bases_V=config['num_repr_bases_V'],
-            hidden_dim=config['approx_net_hidden_dim']
+            num_repr_bases_V=config['parametrization']['repr_bases_V'],
+            hidden_dim=config['models']['approximation_mlp']['hidden_dim']
         ).to(device) for _ in config['augmentations']['rotate']
     ]
     
@@ -182,13 +178,14 @@ def distill():
             optimizer_approx.step()
 
     print("Saving Distilled Assets")
-    asset_dir = config['distilled_assets_dir']
+    asset_dir = config['saving']['distilled_assets_dir']
     torch.save(distilled_data.state_dict(), os.path.join(asset_dir, 'distilled_data.pth'))
     
     for i, net in enumerate(approx_networks):
         rot_angle = config['augmentations']['rotate'][i]
         torch.save(net.state_dict(), os.path.join(asset_dir, f'approx_net_rot_{rot_angle}.pth'))
-        print(f"Distillation complete. Assets saved to: {asset_dir}")
+        
+    print(f"Distillation complete. Assets saved to: {asset_dir}")
 
 if __name__ == "__main__":
     distill()
