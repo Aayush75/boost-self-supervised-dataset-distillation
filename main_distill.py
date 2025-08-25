@@ -106,8 +106,8 @@ def distill():
         distilled_data.train()
         pool_idx = np.random.randint(config['model_pool']['size_L'])
         inner_model = model_pool[pool_idx]
-        inner_model.eval()
         
+        inner_model.eval()
         X_s_base = distilled_data.reconstruct_images()
         Y_s_base = distilled_data.reconstruct_representations()[0]
         
@@ -117,7 +117,9 @@ def distill():
         
         K_ss = f_w_X_s @ f_w_X_s.T
         krr_weights = torch.linalg.solve(K_ss + 1e-4 * torch.eye(K_ss.size(0), device=device), Y_s_base)
-        pred_reprs_outer = f_w_X_t @ krr_weights
+        K_ts = f_w_X_t @ f_w_X_s.T
+        pred_reprs_outer = K_ts @ krr_weights
+
         loss_outer = F.mse_loss(pred_reprs_outer, real_reprs_target)
         
         optimizer_distill.zero_grad()
@@ -128,15 +130,15 @@ def distill():
         inner_model.train()
         optimizer_inner = optimizers_pool[pool_idx]
 
-        X_s_list_aug = [X_s_base]
+        X_s_list_aug = [X_s_base.detach()]
         for rot_angle in config['augmentations']['rotate']:
-            aug_images = TF.rotate(X_s_base, angle=float(rot_angle))
+            aug_images = TF.rotate(X_s_base.detach(), angle=float(rot_angle))
             X_s_list_aug.append(aug_images)
         
         Y_s_list_aug = distilled_data.reconstruct_representations()
         
         train_x = torch.cat(X_s_list_aug, dim=0)
-        train_y = torch.cat(Y_s_list_aug, dim=0)
+        train_y = torch.cat([y.detach() for y in Y_s_list_aug], dim=0)
 
         pred_y = inner_model(train_x)
         loss_inner = F.mse_loss(pred_y, train_y)
