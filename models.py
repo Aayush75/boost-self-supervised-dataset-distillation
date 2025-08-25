@@ -53,7 +53,7 @@ class ApproximationMLP(nn.Module):
         
 
 def get_teacher_model(model_path, feature_dim=512):
-    model = resnet18(weights=None)
+    model = resnet18()
     
     if model.fc.in_features != feature_dim:
         raise ValueError(f"Expected feature_dim {feature_dim} does not match ResNet18's fc.in_features of {model.fc.in_features}. Please check your model architecture.")
