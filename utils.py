@@ -43,7 +43,7 @@ def extract_all_data(dataset):
     print("Data Extraction complete")
     return full_dataset_array
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     cifar100_train, _ = get_dataset('CIFAR100')
     print("Loaded CIFAR100")
 
