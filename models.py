@@ -66,6 +66,8 @@ def get_teacher_model(model_path, feature_dim=512):
         print("stripping 'backbone.' from teacher model state_dict keys")
         state_dict = {k.replace('backbone.', ''): v for k, v in state_dict.items()}
 
+    model.load_state_dict(state_dict)
+
     for param in model.parameters():
         param.requires_grad = False
     
