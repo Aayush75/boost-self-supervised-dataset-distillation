@@ -9,7 +9,7 @@ from torchvision.models import resnet18
 from tqdm import tqdm
 
 from utils import get_dataset
-from models import DistilledData, ApproximationMLP
+from models import ApproximationMLP
 from main_distill import DistilledData
 
 class ResNet18Classifier(nn.Module):
