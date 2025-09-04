@@ -238,8 +238,8 @@ def linear_evaluation(model, config, split='test'):
     linear_classifier = nn.Linear(feature_dim, num_classes).to(device)
     
     # Training setup for linear classifier only
-    optimizer = torch.optim.SGD(linear_classifier.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[60, 80], gamma=0.1)
+    optimizer = torch.optim.SGD(linear_classifier.parameters(), lr=0.2, momentum=0.9, weight_decay=0.0)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
     criterion = nn.CrossEntropyLoss()
     
     # Training loop for linear classifier
