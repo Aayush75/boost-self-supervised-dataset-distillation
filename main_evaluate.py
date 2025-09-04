@@ -218,69 +218,86 @@ def linear_evaluation(model, config, split='test'):
     # Get datasets
     train_dataset, test_dataset = get_dataset(config['data']['name'])
     
-    if split == 'test':
-        eval_dataset = test_dataset
-        print("Performing linear evaluation on test set...")
-    else:
-        eval_dataset = train_dataset
-        print("Performing linear evaluation on train set...")
+    print(f"Dataset sizes - Train: {len(train_dataset)}, Test: {len(test_dataset)}")
     
-    # Extract features and labels
-    eval_loader = DataLoader(eval_dataset, batch_size=512, shuffle=False, num_workers=4)
+    # Always extract train features for training the classifier
+    train_loader = DataLoader(train_dataset, batch_size=512, shuffle=False, num_workers=4, drop_last=False)
+    train_features = []
+    train_labels = []
     
-    all_features = []
-    all_labels = []
-    
-    print("Extracting features...")
+    print("Extracting train features for classifier training...")
     with torch.no_grad():
-        for images, labels in tqdm(eval_loader, desc="Extracting features"):
+        for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc="Extracting train features")):
             images = images.to(device)
             features = model.get_features(images)
-            all_features.append(features.cpu().numpy())
-            all_labels.append(labels.numpy())
+            
+            # Debug: Check batch sizes
+            if batch_idx % 50 == 0:
+                print(f"Batch {batch_idx}: images {images.shape}, features {features.shape}, labels {labels.shape}")
+            
+            train_features.append(features.cpu().numpy())
+            train_labels.append(labels.numpy())
     
-    features = np.concatenate(all_features, axis=0)
-    labels = np.concatenate(all_labels, axis=0)
+    train_features = np.concatenate(train_features, axis=0)
+    train_labels = np.concatenate(train_labels, axis=0)
     
-    print(f"Feature shape: {features.shape}, Labels shape: {labels.shape}")
+    print(f"Final train features shape: {train_features.shape}, Train labels shape: {train_labels.shape}")
     
-    # Train linear classifier
+    # Check for any NaN or inf values
+    if np.any(np.isnan(train_features)) or np.any(np.isinf(train_features)):
+        print("WARNING: NaN or Inf values found in train features!")
+        train_features = np.nan_to_num(train_features)
+    
+    # Extract test features for evaluation
+    test_loader = DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=4, drop_last=False)
+    test_features = []
+    test_labels = []
+    
+    print("Extracting test features for evaluation...")
+    with torch.no_grad():
+        for batch_idx, (images, labels) in enumerate(tqdm(test_loader, desc="Extracting test features")):
+            images = images.to(device)
+            features = model.get_features(images)
+            
+            # Debug: Check batch sizes
+            if batch_idx % 20 == 0:
+                print(f"Test Batch {batch_idx}: images {images.shape}, features {features.shape}, labels {labels.shape}")
+            
+            test_features.append(features.cpu().numpy())
+            test_labels.append(labels.numpy())
+    
+    test_features = np.concatenate(test_features, axis=0)
+    test_labels = np.concatenate(test_labels, axis=0)
+    
+    print(f"Final test features shape: {test_features.shape}, Test labels shape: {test_labels.shape}")
+    
+    # Check for any NaN or inf values
+    if np.any(np.isnan(test_features)) or np.any(np.isinf(test_features)):
+        print("WARNING: NaN or Inf values found in test features!")
+        test_features = np.nan_to_num(test_features)
+    
+    # Verify shapes before training classifier
+    assert train_features.shape[0] == train_labels.shape[0], f"Train feature/label mismatch: {train_features.shape[0]} vs {train_labels.shape[0]}"
+    assert test_features.shape[0] == test_labels.shape[0], f"Test feature/label mismatch: {test_features.shape[0]} vs {test_labels.shape[0]}"
+    
+    # Train linear classifier on train features
     print("Training linear classifier...")
-    classifier = LogisticRegression(max_iter=1000, random_state=42, C=1.0)
-    
-    # Use train set for training classifier, test set for evaluation
-    if split == 'test':
-        # Get train features for training classifier
-        train_loader = DataLoader(train_dataset, batch_size=512, shuffle=False, num_workers=4)
-        train_features = []
-        train_labels = []
-        
-        with torch.no_grad():
-            for images, labels in tqdm(train_loader, desc="Extracting train features"):
-                images = images.to(device)
-                feats = model.get_features(images)
-                train_features.append(feats.cpu().numpy())
-                train_labels.append(labels.numpy())
-        
-        train_features = np.concatenate(train_features, axis=0)
-        train_labels = np.concatenate(train_labels, axis=0)
-        
-        # Train on train set, evaluate on test set
+    try:
+        classifier = LogisticRegression(max_iter=1000, random_state=42, C=1.0)
         classifier.fit(train_features, train_labels)
-        predictions = classifier.predict(features)
-        accuracy = accuracy_score(labels, predictions)
         
-        print(f"Test Accuracy: {accuracy:.4f}")
+        # Evaluate on test features
+        predictions = classifier.predict(test_features)
+        accuracy = accuracy_score(test_labels, predictions)
         
-    else:
-        # Train and evaluate on same set (for debugging)
-        classifier.fit(features, labels)
-        predictions = classifier.predict(features)
-        accuracy = accuracy_score(labels, predictions)
+        print(f"Linear Evaluation Accuracy: {accuracy:.4f}")
+        return accuracy
         
-        print(f"Train Accuracy: {accuracy:.4f}")
-    
-    return accuracy
+    except Exception as e:
+        print(f"Error in classifier training: {e}")
+        print(f"Train features shape: {train_features.shape}")
+        print(f"Train labels shape: {train_labels.shape}")
+        raise
 
 def evaluate_models(config_path):
     """Main evaluation function comparing full dataset vs distilled dataset training."""
