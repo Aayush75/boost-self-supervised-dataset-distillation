@@ -211,93 +211,99 @@ def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
     return model
 
 def linear_evaluation(model, config, split='test'):
-    """Perform linear evaluation on CIFAR100."""
+    """
+    Perform linear evaluation following SSL protocol:
+    1. Freeze the feature extractor weights
+    2. Train only a linear classifier (nn.Linear) on top
+    3. Evaluate on test set
+    """
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Freeze the feature extractor
+    for param in model.parameters():
+        param.requires_grad = False
     model.eval()
     
     # Get datasets
     train_dataset, test_dataset = get_dataset(config['data']['name'])
-    
     print(f"Dataset sizes - Train: {len(train_dataset)}, Test: {len(test_dataset)}")
     
-    # Always extract train features for training the classifier
-    train_loader = DataLoader(train_dataset, batch_size=512, shuffle=False, num_workers=4, drop_last=False)
-    train_features = []
-    train_labels = []
+    # Create data loaders
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4)
+    test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4)
     
-    print("Extracting train features for classifier training...")
+    # Create linear classifier (only this will be trained)
+    feature_dim = 512  # ResNet18 feature dimension
+    num_classes = 100  # CIFAR100 has 100 classes
+    linear_classifier = nn.Linear(feature_dim, num_classes).to(device)
+    
+    # Training setup for linear classifier only
+    optimizer = torch.optim.SGD(linear_classifier.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[60, 80], gamma=0.1)
+    criterion = nn.CrossEntropyLoss()
+    
+    # Training loop for linear classifier
+    epochs = 100
+    print(f"Training linear classifier for {epochs} epochs...")
+    
+    for epoch in range(epochs):
+        linear_classifier.train()
+        total_loss = 0.0
+        correct = 0
+        total = 0
+        
+        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False):
+            images, labels = images.to(device), labels.to(device)
+            
+            # Extract features (frozen)
+            with torch.no_grad():
+                features = model.get_features(images)
+            
+            # Forward pass through linear classifier only
+            outputs = linear_classifier(features)
+            loss = criterion(outputs, labels)
+            
+            # Backward pass (only linear classifier parameters)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            # Statistics
+            total_loss += loss.item()
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+        
+        scheduler.step()
+        
+        train_acc = 100.0 * correct / total
+        
+        if (epoch + 1) % 20 == 0:
+            print(f"Epoch {epoch+1}/{epochs}, Loss: {total_loss/len(train_loader):.4f}, Train Acc: {train_acc:.2f}%")
+    
+    # Evaluation on test set
+    print("Evaluating on test set...")
+    linear_classifier.eval()
+    correct = 0
+    total = 0
+    
     with torch.no_grad():
-        for batch_idx, (images, labels) in enumerate(tqdm(train_loader, desc="Extracting train features")):
-            images = images.to(device)
+        for images, labels in tqdm(test_loader, desc="Testing"):
+            images, labels = images.to(device), labels.to(device)
+            
+            # Extract features (frozen)
             features = model.get_features(images)
             
-            # Debug: Check batch sizes
-            if batch_idx % 50 == 0:
-                print(f"Batch {batch_idx}: images {images.shape}, features {features.shape}, labels {labels.shape}")
-            
-            train_features.append(features.cpu().numpy())
-            train_labels.append(labels.numpy())
+            # Forward pass through linear classifier
+            outputs = linear_classifier(features)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
     
-    train_features = np.concatenate(train_features, axis=0)
-    train_labels = np.concatenate(train_labels, axis=0)
+    accuracy = correct / total
+    print(f"Linear Evaluation Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
     
-    print(f"Final train features shape: {train_features.shape}, Train labels shape: {train_labels.shape}")
-    
-    # Check for any NaN or inf values
-    if np.any(np.isnan(train_features)) or np.any(np.isinf(train_features)):
-        print("WARNING: NaN or Inf values found in train features!")
-        train_features = np.nan_to_num(train_features)
-    
-    # Extract test features for evaluation
-    test_loader = DataLoader(test_dataset, batch_size=512, shuffle=False, num_workers=4, drop_last=False)
-    test_features = []
-    test_labels = []
-    
-    print("Extracting test features for evaluation...")
-    with torch.no_grad():
-        for batch_idx, (images, labels) in enumerate(tqdm(test_loader, desc="Extracting test features")):
-            images = images.to(device)
-            features = model.get_features(images)
-            
-            # Debug: Check batch sizes
-            if batch_idx % 20 == 0:
-                print(f"Test Batch {batch_idx}: images {images.shape}, features {features.shape}, labels {labels.shape}")
-            
-            test_features.append(features.cpu().numpy())
-            test_labels.append(labels.numpy())
-    
-    test_features = np.concatenate(test_features, axis=0)
-    test_labels = np.concatenate(test_labels, axis=0)
-    
-    print(f"Final test features shape: {test_features.shape}, Test labels shape: {test_labels.shape}")
-    
-    # Check for any NaN or inf values
-    if np.any(np.isnan(test_features)) or np.any(np.isinf(test_features)):
-        print("WARNING: NaN or Inf values found in test features!")
-        test_features = np.nan_to_num(test_features)
-    
-    # Verify shapes before training classifier
-    assert train_features.shape[0] == train_labels.shape[0], f"Train feature/label mismatch: {train_features.shape[0]} vs {train_labels.shape[0]}"
-    assert test_features.shape[0] == test_labels.shape[0], f"Test feature/label mismatch: {test_features.shape[0]} vs {test_labels.shape[0]}"
-    
-    # Train linear classifier on train features
-    print("Training linear classifier...")
-    try:
-        classifier = LogisticRegression(max_iter=1000, random_state=42, C=1.0)
-        classifier.fit(train_features, train_labels)
-        
-        # Evaluate on test features
-        predictions = classifier.predict(test_features)
-        accuracy = accuracy_score(test_labels, predictions)
-        
-        print(f"Linear Evaluation Accuracy: {accuracy:.4f}")
-        return accuracy
-        
-    except Exception as e:
-        print(f"Error in classifier training: {e}")
-        print(f"Train features shape: {train_features.shape}")
-        print(f"Train labels shape: {train_labels.shape}")
-        raise
+    return accuracy
 
 def evaluate_models(config_path):
     """Main evaluation function comparing full dataset vs distilled dataset training."""
