@@ -13,7 +13,7 @@ from sklearn.metrics import accuracy_score, classification_report
 from tqdm import tqdm
 
 from utils import get_dataset
-from models import get_teacher_model, InnerCNN, DistilledData, ApproximationMLP
+from models import get_teacher_model, InnerCNN, ApproximationMLP
 from main_distill import DistilledData
 
 class LinearClassifier(nn.Module):
