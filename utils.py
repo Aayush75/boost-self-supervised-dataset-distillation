@@ -22,7 +22,7 @@ def get_dataset(name,data_dir='./data'):
         raise NotImplementedError(f"Dataset '{name}' is not supported.")
 
 def get_pca_components(data,n_components):
-    print(f"Performing PCA to find {n_components} components....")
+    print("Performing PCA to find {} components....".format(n_components))
 
     if data.ndim > 2:
         data = data.reshape(data.shape[0],-1)
@@ -51,4 +51,4 @@ if __name__ == '__main__':
     n_components = 64
     bases = get_pca_components(all_images,n_components)
 
-    print(f"Sucessful. Shape of image bases : {bases.shape}")
+    print("Sucessful. Shape of image bases : {}".format(bases.shape))

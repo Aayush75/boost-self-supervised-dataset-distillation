@@ -69,7 +69,7 @@ def get_teacher_model(model_path, feature_dim=512):
     model.fc = nn.Identity()
     
     if not os.path.exists(model_path):
-        print(f"Warning: Teacher model not found at {model_path}")
+        print("Warning: Teacher model not found at {}".format(model_path))
         print("Using randomly initialized ResNet18 - this will not produce meaningful results!")
         print("Please train a teacher model first using a self-supervised method like SimCLR or Barlow Twins.")
         
@@ -108,10 +108,10 @@ def get_teacher_model(model_path, feature_dim=512):
             filtered_state_dict[k] = v
         
         model.load_state_dict(filtered_state_dict, strict=False)
-        print(f"Successfully loaded teacher model from {model_path}")
+        print("Successfully loaded teacher model from {}".format(model_path))
         
     except Exception as e:
-        print(f"Error loading teacher model from {model_path}: {str(e)}")
+        print("Error loading teacher model from {}: {}".format(model_path, str(e)))
         print("Using randomly initialized ResNet18 - this will not produce meaningful results!")
 
     for param in model.parameters():

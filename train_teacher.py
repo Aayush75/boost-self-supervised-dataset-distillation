@@ -70,7 +70,7 @@ def train_teacher_model():
     total_start_time = time.time()
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"Using device: {device}")
+    print("Using device: {}".format(device))
     
     print("\n⏱️  Setting up data pipeline...")
     setup_start = time.time()
@@ -80,7 +80,7 @@ def train_teacher_model():
     train_dataset.transform = transform
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4, drop_last=True)
     setup_time = time.time() - setup_start
-    print(f"✓ Data setup completed in {setup_time:.2f}s")
+    print("✓ Data setup completed in {:.2f}s".format(setup_time))
     
     print("\n⏱️  Initializing model...")
     model_start = time.time()
@@ -91,12 +91,12 @@ def train_teacher_model():
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=800)
     model_setup_time = time.time() - model_start
-    print(f"✓ Model initialization completed in {model_setup_time:.2f}s")
+    print("✓ Model initialization completed in {:.2f}s".format(model_setup_time))
     
     epochs = 800
     model.train()
     
-    print(f"\n⏱️  Starting training for {epochs} epochs...")
+    print("\n⏱️  Starting training for {} epochs...".format(epochs))
     training_start = time.time()
     
     epoch_times = []
@@ -108,7 +108,7 @@ def train_teacher_model():
         num_batches = 0
         
         batch_times = []
-        for batch_idx, (images, _) in enumerate(tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False)):
+        for batch_idx, (images, _) in enumerate(tqdm(train_loader, desc="Epoch {}/{}".format(epoch+1, epochs), leave=False)):
             batch_start = time.time()
             
             images = images.to(device)
@@ -133,7 +133,7 @@ def train_teacher_model():
             batch_times.append(batch_time)
             
             if batch_idx == 0 and epoch == 0:
-                print(f"  📊 First batch processed in {batch_time:.2f}s")
+                print("  📊 First batch processed in {:.2f}s".format(batch_time))
         
         scheduler.step()
         avg_loss = total_loss / num_batches
@@ -151,15 +151,15 @@ def train_teacher_model():
             avg_epoch_time = sum(epoch_times) / len(epoch_times)
             eta = remaining_epochs * avg_epoch_time
             
-            print(f"Epoch {epoch+1}/{epochs}")
-            print(f"  Loss: {avg_loss:.6f} (Best: {best_loss:.6f})")
-            print(f"  LR: {scheduler.get_last_lr()[0]:.6f}")
-            print(f"  Epoch Time: {epoch_time:.1f}s (Avg: {avg_epoch_time:.1f}s)")
-            print(f"  Batch Time: {avg_batch_time:.3f}s")
-            print(f"  Elapsed: {elapsed_training/3600:.1f}h, ETA: {eta/3600:.1f}h")
+            print("Epoch {}/{}".format(epoch+1, epochs))
+            print("  Loss: {:.6f} (Best: {:.6f})".format(avg_loss, best_loss))
+            print("  LR: {:.6f}".format(scheduler.get_last_lr()[0]))
+            print("  Epoch Time: {:.1f}s (Avg: {:.1f}s)".format(epoch_time, avg_epoch_time))
+            print("  Batch Time: {:.3f}s".format(avg_batch_time))
+            print("  Elapsed: {:.1f}h, ETA: {:.1f}h".format(elapsed_training/3600, eta/3600))
     
     training_time = time.time() - training_start
-    print(f"\n✓ Training completed in {training_time/3600:.1f} hours")
+    print("\n✓ Training completed in {:.1f} hours".format(training_time/3600))
     
     print("\n⏱️  Saving model...")
     save_start = time.time()
@@ -167,19 +167,19 @@ def train_teacher_model():
     save_path = './teacher_models/resnet18_barlow_twins_cifar100.pth'
     torch.save(model.backbone.state_dict(), save_path)
     save_time = time.time() - save_start
-    print(f"✓ Model saved in {save_time:.2f}s to {save_path}")
+    print("✓ Model saved in {:.2f}s to {}".format(save_time, save_path))
     
     total_time = time.time() - total_start_time
-    print(f"\n{'='*60}")
-    print(f"TEACHER TRAINING SUMMARY")
-    print(f"{'='*60}")
-    print(f"Total Time: {total_time/3600:.1f} hours")
-    print(f"  Setup: {(setup_time + model_setup_time):.1f}s")
-    print(f"  Training: {training_time/3600:.1f}h")
-    print(f"  Saving: {save_time:.1f}s")
-    print(f"Final Loss: {best_loss:.6f}")
-    print(f"Average Epoch Time: {sum(epoch_times)/len(epoch_times):.1f}s")
-    print(f"{'='*60}")
+    print("\n{}".format("="*60))
+    print("TEACHER TRAINING SUMMARY")
+    print("{}".format("="*60))
+    print("Total Time: {:.1f} hours".format(total_time/3600))
+    print("  Setup: {:.1f}s".format(setup_time + model_setup_time))
+    print("  Training: {:.1f}h".format(training_time/3600))
+    print("  Saving: {:.1f}s".format(save_time))
+    print("Final Loss: {:.6f}".format(best_loss))
+    print("Average Epoch Time: {:.1f}s".format(sum(epoch_times)/len(epoch_times)))
+    print("{}".format("="*60))
     
     return model.backbone
 

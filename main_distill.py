@@ -58,7 +58,7 @@ def distill():
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    print(f"Using device: {device}")
+    print("Using device: {}".format(device))
     
     os.makedirs(config['saving']['distilled_assets_dir'], exist_ok=True)
     
@@ -67,7 +67,7 @@ def distill():
     train_dataset, _ = get_dataset(config['data']['name'])
     teacher_model = get_teacher_model(config['models']['teacher']['path'], config['models']['teacher']['feature_dim']).to(device)
     load_time = time.time() - load_start
-    print(f"✓ Loading completed in {load_time:.2f}s")
+    print("✓ Loading completed in {:.2f}s".format(load_time))
     
     print("\n⏱️  Initializing distilled data parameters...")
     init_start = time.time()
@@ -83,7 +83,7 @@ def distill():
     sample_indices = np.random.choice(len(all_images_np), config['distillation']['num_distilled_images_m'], replace=False)
     C_x_init = pca_img.transform(all_images_down_flat[sample_indices])
     pca_img_time = time.time() - pca_img_start
-    print(f"  ✓ Image PCA completed in {pca_img_time:.2f}s")
+    print("  ✓ Image PCA completed in {:.2f}s".format(pca_img_time))
 
     print("  📊 Computing representation PCA...")
     pca_repr_start = time.time()
@@ -95,13 +95,13 @@ def distill():
             reprs = teacher_model(images.to(device)).cpu().numpy()
             all_reprs_np.append(reprs)
             if batch_idx == 0:
-                print(f"    First batch processed in {time.time() - batch_start:.3f}s")
+                print("    First batch processed in {:.3f}s".format(time.time() - batch_start))
     all_reprs_np = np.concatenate(all_reprs_np)
     pca_repr = PCA(n_components=config['parametrization']['repr_bases_V'], random_state=42).fit(all_reprs_np)
     B_y_init = pca_repr.components_
     C_y_init = pca_repr.transform(all_reprs_np[sample_indices])
     pca_repr_time = time.time() - pca_repr_start
-    print(f"  ✓ Representation PCA completed in {pca_repr_time:.2f}s")
+    print("  ✓ Representation PCA completed in {:.2f}s".format(pca_repr_time))
         
     print("  📊 Initializing augmentation representations...")
     aug_init_start = time.time()
@@ -140,7 +140,7 @@ def distill():
     distilled_data = DistilledData(init_params, config).to(device)
     
     init_total_time = time.time() - init_start
-    print(f"✓ Initialization completed in {init_total_time:.2f}s")
+    print("✓ Initialization completed in {:.2f}s".format(init_total_time))
     
     optimizer_distill = torch.optim.AdamW(distilled_data.parameters(), lr=config['distillation']['optimizer']['lr'])
     lr_schedule = lambda step: 1.0 - step / config['distillation']['steps']
@@ -157,7 +157,7 @@ def distill():
     # Add gradient clipping
     max_grad_norm = config.get('optimization', {}).get('gradient_clip', 1.0)
     
-    print(f"\n⏱️  Starting distillation ({config['distillation']['steps']} steps)...")
+    print("\n⏱️  Starting distillation ({} steps)...".format(config['distillation']['steps']))
     distill_start = time.time()
         
     for step in tqdm(range(config['distillation']['steps']), desc="Distilling Dataset"):
@@ -245,7 +245,7 @@ def distill():
             step_counters[pool_idx] = 0
     
     distill_total_time = time.time() - distill_start
-    print(f"✓ Distillation completed in {distill_total_time/3600:.1f}h")
+    print("✓ Distillation completed in {:.1f}h".format(distill_total_time/3600))
         
     print("\n⏱️  Training Approximation Networks...")
     approx_start = time.time()
@@ -263,7 +263,7 @@ def distill():
             num_layers=config['models']['approximation_mlp']['num_layers']
         ).to(device)
         approx_networks.append(net)
-        aug_types.append(f'rot_{rot_angle}')
+        aug_types.append('rot_{}'.format(rot_angle))
     
     # Color jitter networks
     if 'color_jitter_strengths' in config['augmentations']:
@@ -274,7 +274,7 @@ def distill():
                 num_layers=config['models']['approximation_mlp']['num_layers']
             ).to(device)
             approx_networks.append(net)
-            aug_types.append(f'color_{strength}')
+            aug_types.append('color_{}'.format(strength))
     
     # Gaussian blur networks
     if 'gaussian_blur' in config['augmentations']:
@@ -285,7 +285,7 @@ def distill():
                 num_layers=config['models']['approximation_mlp']['num_layers']
             ).to(device)
             approx_networks.append(net)
-            aug_types.append(f'blur_{kernel_size}')
+            aug_types.append('blur_{}'.format(kernel_size))
     
     with torch.no_grad():
         C_y_base_target = distilled_data.C_y
@@ -298,7 +298,7 @@ def distill():
             C_y_aug_target = distilled_data.C_aug_y[i]
             target_shift = C_y_aug_target - C_y_base_target
 
-        for epoch in tqdm(range(500), desc=f"Training Approximation Net for {aug_type}", leave=False):
+        for epoch in tqdm(range(500), desc="Training Approximation Net for {}".format(aug_type), leave=False):
             optimizer_approx.zero_grad()
             pred_shift = net(C_y_base_target)
             loss = F.mse_loss(pred_shift, target_shift)
@@ -307,10 +307,10 @@ def distill():
         
         net_time = time.time() - net_start
         approx_times.append(net_time)
-        print(f"  ✓ {aug_type} network trained in {net_time:.2f}s")
+        print("  ✓ {} network trained in {:.2f}s".format(aug_type, net_time))
     
     approx_total_time = time.time() - approx_start
-    print(f"✓ All approximation networks trained in {approx_total_time:.2f}s")
+    print("✓ All approximation networks trained in {:.2f}s".format(approx_total_time))
 
     print("\n⏱️  Saving distilled assets...")
     save_start = time.time()
@@ -318,25 +318,25 @@ def distill():
     torch.save(distilled_data.state_dict(), os.path.join(asset_dir, 'distilled_data.pth'))
     
     for i, (net, aug_type) in enumerate(zip(approx_networks, aug_types)):
-        torch.save(net.state_dict(), os.path.join(asset_dir, f'approx_net_{aug_type}.pth'))
+        torch.save(net.state_dict(), os.path.join(asset_dir, 'approx_net_{}.pth'.format(aug_type)))
     
     save_time = time.time() - save_start
-    print(f"✓ Assets saved in {save_time:.2f}s")
+    print("✓ Assets saved in {:.2f}s".format(save_time))
         
     total_time = time.time() - total_start_time
     
-    print(f"\n{'='*80}")
-    print(f"DISTILLATION SUMMARY")
-    print(f"{'='*80}")
-    print(f"Total Time: {total_time/3600:.1f} hours")
-    print(f"  Loading: {load_time:.1f}s")
-    print(f"  Initialization: {init_total_time:.1f}s")
-    print(f"  Distillation: {distill_total_time/3600:.1f}h")
-    print(f"  Approximation Networks: {approx_total_time:.1f}s")
-    print(f"  Saving: {save_time:.1f}s")
-    print(f"Saved {len(approx_networks)} approximation networks for: {aug_types}")
-    print(f"Assets saved to: {asset_dir}")
-    print(f"{'='*80}")
+    print("\n{}".format("="*80))
+    print("DISTILLATION SUMMARY")
+    print("{}".format("="*80))
+    print("Total Time: {:.1f} hours".format(total_time/3600))
+    print("  Loading: {:.1f}s".format(load_time))
+    print("  Initialization: {:.1f}s".format(init_total_time))
+    print("  Distillation: {:.1f}h".format(distill_total_time/3600))
+    print("  Approximation Networks: {:.1f}s".format(approx_total_time))
+    print("  Saving: {:.1f}s".format(save_time))
+    print("Saved {} approximation networks for: {}".format(len(approx_networks), aug_types))
+    print("Assets saved to: {}".format(asset_dir))
+    print("{}".format("="*80))
 
 if __name__ == "__main__":
     distill()
