@@ -6,27 +6,16 @@ experiment_name: "cifar100_distillation"
 data:
   name: "CIFAR100"
   path: "./data"
-  num_classes: 100
   resolution: [3, 32, 32]
-  normalize:
-    mean: [0.5071, 0.4867, 0.4408]
-    std: [0.2675, 0.2565, 0.2761]
 
 distillation:
   storage_budget_N: 100
   num_distilled_images_m: 100
   steps: 30000
-  distill_epochs: 1000
-  update_frequency: 10
   optimizer:
     name: "AdamW"
     lr: 0.001
     decay_type: "linear"
-
-optimization:
-  temperature: 0.1
-  momentum_teacher: 0.999
-  gradient_clip: 1.0
 
 parametrization:
   image_bases_U: 200
@@ -43,40 +32,10 @@ models:
     channels: [128, 256, 512]
     feature_dim: 512
   approximation_mlp:
-    hidden_dim: 256
-    num_layers: 3
-
-training:
-  batch_size: 256
-  lr: 0.1
-  momentum: 0.9
-  weight_decay: 0.0001
-  max_epochs: 1000
-  patience: 50
-  warmup_epochs: 10
-  cosine_restart: true
-  linear_eval_epochs: 100
-  linear_eval_lr: 0.2
-  linear_eval_weight_decay: 0.0
+    hidden_dim: 4
 
 augmentations:
   rotate: [90, 180, 270]
-  color_jitter:
-    brightness: 0.4
-    contrast: 0.4
-    saturation: 0.4
-    hue: 0.1
-  random_crop:
-    size: 32
-    scale: [0.8, 1.0]
-    ratio: [0.75, 1.33]
-  horizontal_flip:
-    p: 0.5
-  gaussian_blur:
-    kernel_size: [3, 5, 7]
-    sigma: [0.1, 2.0]
-  color_jitter_strengths: [0.2, 0.4, 0.6]
-  crop_scales: [0.7, 0.8, 0.9]
 
 saving:
   distilled_assets_dir: "./distilled_assets/cifar100_N100"

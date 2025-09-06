@@ -1,4 +1,3 @@
-import os
 import torch
 import torch.nn as nn
 from torchvision.models import resnet18
@@ -41,81 +40,37 @@ class InnerCNN(nn.Module):
         
         
 class ApproximationMLP(nn.Module):
-    def __init__(self, num_repr_bases_V, hidden_dim=256, num_layers=3):
+    def __init__(self, num_repr_bases_V, hidden_dim=4):
         super().__init__()
-        layers = []
-        
-        if num_layers == 1:
-            layers.append(nn.Linear(num_repr_bases_V, num_repr_bases_V))
-        else:
-            layers.append(nn.Linear(num_repr_bases_V, hidden_dim))
-            layers.append(nn.ReLU(inplace=True))
-            
-            for _ in range(num_layers - 2):
-                layers.append(nn.Linear(hidden_dim, hidden_dim))
-                layers.append(nn.ReLU(inplace=True))
-            
-            layers.append(nn.Linear(hidden_dim, num_repr_bases_V))
-        
-        self.net = nn.Sequential(*layers)
+        self.net = nn.Sequential(
+            nn.Linear(num_repr_bases_V, hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(hidden_dim, num_repr_bases_V)
+        )
 
     def forward(self, x):
         return self.net(x)
         
 
 def get_teacher_model(model_path, feature_dim=512):
-    """Load and initialize teacher model with proper error handling"""
     model = resnet18()
+    
+    if model.fc.in_features != feature_dim:
+        raise ValueError(f"Expected feature_dim {feature_dim} does not match ResNet18's fc.in_features of {model.fc.in_features}. Please check your model architecture.")
+
     model.fc = nn.Identity()
     
-    if not os.path.exists(model_path):
-        print("Warning: Teacher model not found at {}".format(model_path))
-        print("Using randomly initialized ResNet18 - this will not produce meaningful results!")
-        print("Please train a teacher model first using a self-supervised method like SimCLR or Barlow Twins.")
-        
-        for param in model.parameters():
-            param.requires_grad = False
-        model.eval()
-        return model
+    state_dict = torch.load(model_path, map_location='cpu')
     
-    try:
-        checkpoint = torch.load(model_path, map_location='cpu')
-        
-        if isinstance(checkpoint, dict):
-            if 'state_dict' in checkpoint:
-                state_dict = checkpoint['state_dict']
-            elif 'model' in checkpoint:
-                state_dict = checkpoint['model']
-            else:
-                state_dict = checkpoint
-        else:
-            state_dict = checkpoint
-            
-        if all(key.startswith('backbone.') for key in state_dict.keys()):
-            print("Removing 'backbone.' prefix from teacher model state_dict keys")
-            state_dict = {k.replace('backbone.', ''): v for k, v in state_dict.items()}
-        
-        if all(key.startswith('encoder.') for key in state_dict.keys()):
-            print("Removing 'encoder.' prefix from teacher model state_dict keys")
-            state_dict = {k.replace('encoder.', ''): v for k, v in state_dict.items()}
-        
-        filtered_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith('fc.') and k != 'fc.weight' and k != 'fc.bias':
-                continue
-            if 'fc' in k and v.shape[0] != feature_dim:
-                continue
-            filtered_state_dict[k] = v
-        
-        model.load_state_dict(filtered_state_dict, strict=False)
-        print("Successfully loaded teacher model from {}".format(model_path))
-        
-    except Exception as e:
-        print("Error loading teacher model from {}: {}".format(model_path, str(e)))
-        print("Using randomly initialized ResNet18 - this will not produce meaningful results!")
+    if all(key.startswith('backbone.') for key in state_dict.keys()):
+        print("stripping 'backbone.' from teacher model state_dict keys")
+        state_dict = {k.replace('backbone.', ''): v for k, v in state_dict.items()}
+
+    model.load_state_dict(state_dict)
 
     for param in model.parameters():
         param.requires_grad = False
     
     model.eval()
+    
     return model
