@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torchvision import transforms
+from torchvision.transforms import functional as TF
 from torchvision.models import resnet18
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
@@ -97,6 +98,43 @@ class DistilledDatasetLoader:
             images = self.distilled_data.reconstruct_images()
             representations = self.distilled_data.reconstruct_representations()[0]  # Base representations
         return images, representations
+    
+    def get_augmented_training_data(self):
+        """Get all training data including base images and augmented views with their targets."""
+        with torch.no_grad():
+            # Get base data
+            base_images = self.distilled_data.reconstruct_images()
+            base_representations = self.distilled_data.reconstruct_representations()[0]
+            
+            all_images = [base_images]
+            all_targets = [base_representations]
+            
+            # Get base coefficients for approximation networks
+            base_coeffs = self.distilled_data.C_y
+            
+            # Generate augmented data
+            for i, rot_angle in enumerate(self.config['augmentations']['rotate']):
+                # Apply rotation to base images
+                aug_images = TF.rotate(base_images, angle=float(rot_angle))
+                all_images.append(aug_images)
+                
+                # Use approximation network to predict augmented targets
+                approx_net = self.approx_networks[i]
+                approx_net.eval()
+                
+                # Get predicted shift and compute augmented coefficients
+                pred_shift = approx_net(base_coeffs)
+                aug_coeffs = base_coeffs + pred_shift
+                
+                # Reconstruct target representations from augmented coefficients
+                aug_targets = aug_coeffs @ self.distilled_data.B_y
+                all_targets.append(aug_targets)
+            
+            # Combine all data
+            train_images = torch.cat(all_images, dim=0)
+            train_targets = torch.cat(all_targets, dim=0)
+            
+        return train_images, train_targets
 
 def pretrain_on_full_dataset(config, save_path=None):
     """Train a ResNet18 feature extractor on the full CIFAR100 dataset using MSE loss."""
@@ -162,20 +200,33 @@ def pretrain_on_full_dataset(config, save_path=None):
     return model
 
 def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
-    """Train a ResNet18 feature extractor on the distilled dataset."""
+    """Train a ResNet18 feature extractor on the distilled dataset with augmentations and approximation networks."""
     print("=" * 60)
-    print("TRAINING RESNET18 ON DISTILLED DATASET")
+    print("TRAINING RESNET18 ON DISTILLED DATASET (WITH AUGMENTATIONS)")
     print("=" * 60)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load distilled data
+    # Load distilled data and approximation networks
     distilled_loader = DistilledDatasetLoader(config, asset_dir)
-    distilled_images, distilled_representations = distilled_loader.get_distilled_data()
     
-    print(f"Distilled dataset size: {len(distilled_images)} images")
-    print(f"Image shape: {distilled_images.shape}")
-    print(f"Representation shape: {distilled_representations.shape}")
+    # Get base distilled data for info
+    base_images, base_representations = distilled_loader.get_distilled_data()
+    print(f"Base distilled dataset size: {len(base_images)} images")
+    print(f"Base image shape: {base_images.shape}")
+    print(f"Base representation shape: {base_representations.shape}")
+    print(f"Number of approximation networks: {len(distilled_loader.approx_networks)}")
+    
+    # Get augmented training data following the paper's methodology
+    print("Preparing augmented training data using approximation networks...")
+    train_images, train_targets = distilled_loader.get_augmented_training_data()
+    
+    total_samples = len(train_images)
+    augmentation_factor = total_samples / len(base_images)
+    
+    print(f"Total training samples: {total_samples} (augmentation factor: {augmentation_factor:.1f}x)")
+    print(f"Final training image shape: {train_images.shape}")
+    print(f"Final training target shape: {train_targets.shape}")
     
     # Create ResNet18 model
     model = ResNet18FeatureExtractor(feature_dim=512).to(device)
@@ -189,10 +240,10 @@ def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
     print(f"Training for {epochs} epochs...")
     
     model.train()
-    for epoch in tqdm(range(epochs), desc="Training on distilled dataset"):
-        # Forward pass
-        pred_repr = model.get_features(distilled_images)
-        loss = criterion(pred_repr, distilled_representations)
+    for epoch in tqdm(range(epochs), desc="Training on distilled dataset with augmentations"):
+        # Forward pass on all training data (base + augmented)
+        pred_repr = model.get_features(train_images)
+        loss = criterion(pred_repr, train_targets)
         
         # Backward pass
         optimizer.zero_grad()
