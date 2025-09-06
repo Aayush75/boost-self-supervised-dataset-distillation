@@ -25,13 +25,14 @@ class DistilledData(nn.Module):
             align_corners=False
         )
         
-        self.B_x = nn.Parameter(torch.tensor(init_params['B_x'], dtype=torch.float32))
-        self.B_y = nn.Parameter(torch.tensor(init_params['B_y'], dtype=torch.float32))
-        self.C_x = nn.Parameter(torch.tensor(init_params['C_x'], dtype=torch.float32))
-        self.C_y = nn.Parameter(torch.tensor(init_params['C_y'], dtype=torch.float32))
+        # Use clone().detach() to avoid tensor creation warnings
+        self.B_x = nn.Parameter(torch.as_tensor(init_params['B_x'], dtype=torch.float32).clone().detach())
+        self.B_y = nn.Parameter(torch.as_tensor(init_params['B_y'], dtype=torch.float32).clone().detach())
+        self.C_x = nn.Parameter(torch.as_tensor(init_params['C_x'], dtype=torch.float32).clone().detach())
+        self.C_y = nn.Parameter(torch.as_tensor(init_params['C_y'], dtype=torch.float32).clone().detach())
 
         self.C_aug_y = nn.ParameterList([
-            nn.Parameter(torch.tensor(p, dtype=torch.float32)) for p in init_params['C_aug_y']
+            nn.Parameter(torch.as_tensor(p, dtype=torch.float32).clone().detach()) for p in init_params['C_aug_y']
         ])
         
     def reconstruct_images(self):

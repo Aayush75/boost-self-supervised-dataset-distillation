@@ -85,6 +85,24 @@ class DistilledDatasetLoader:
         
     def _load_distilled_data(self, asset_dir):
         """Load the distilled data parameters."""
+        # Calculate total number of augmentations to match the saved model
+        num_aug_reprs = 0
+        
+        # Count rotation augmentations
+        num_aug_reprs += len(self.config['augmentations']['rotate'])
+        
+        # Count color jitter augmentations if present
+        if 'color_jitter_strengths' in self.config['augmentations']:
+            num_aug_reprs += len(self.config['augmentations']['color_jitter_strengths'])
+        
+        # Count crop augmentations if present
+        if 'crop_scales' in self.config['augmentations']:
+            num_aug_reprs += len(self.config['augmentations']['crop_scales'])
+        
+        # Count gaussian blur augmentations if present
+        if 'gaussian_blur' in self.config['augmentations']:
+            num_aug_reprs += len(self.config['augmentations']['gaussian_blur']['kernel_size'])
+        
         # Create dummy init params (will be overwritten by state_dict)
         init_params = {
             'B_x': torch.zeros(self.config['parametrization']['image_bases_U'], 
@@ -97,7 +115,7 @@ class DistilledDatasetLoader:
                               self.config['parametrization']['repr_bases_V']),
             'C_aug_y': [torch.zeros(self.config['distillation']['num_distilled_images_m'], 
                                    self.config['parametrization']['repr_bases_V']) 
-                       for _ in self.config['augmentations']['rotate']]
+                       for _ in range(num_aug_reprs)]
         }
         
         distilled_data = DistilledData(init_params, self.config).to(self.device)
@@ -156,6 +174,22 @@ class DistilledDatasetLoader:
 
 def pretrain_on_full_dataset(config, save_path=None):
     """Train a ResNet18 feature extractor on the full CIFAR100 dataset using MSE loss."""
+    
+    # Check if model already exists
+    if save_path and os.path.exists(save_path):
+        print("=" * 60)
+        print("LOADING EXISTING FULL DATASET MODEL")
+        print("=" * 60)
+        print(f"Found existing model at {save_path}")
+        print("Skipping full dataset training...")
+        
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = ResNet18FeatureExtractor(feature_dim=512).to(device)
+        model.load_state_dict(torch.load(save_path, map_location=device))
+        model.eval()
+        print("✓ Model loaded successfully")
+        return model
+    
     print("=" * 60)
     print("TRAINING RESNET18 ON FULL CIFAR100 DATASET")
     print("=" * 60)
@@ -236,6 +270,22 @@ def pretrain_on_full_dataset(config, save_path=None):
 
 def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
     """Train a ResNet18 feature extractor on the distilled dataset."""
+    
+    # Check if model already exists
+    if save_path and os.path.exists(save_path):
+        print("=" * 60)
+        print("LOADING EXISTING DISTILLED DATASET MODEL")
+        print("=" * 60)
+        print(f"Found existing model at {save_path}")
+        print("Skipping distilled dataset training...")
+        
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model = ResNet18FeatureExtractor(feature_dim=512).to(device)
+        model.load_state_dict(torch.load(save_path, map_location=device))
+        model.eval()
+        print("✓ Model loaded successfully")
+        return model
+    
     print("=" * 60)
     print("TRAINING RESNET18 ON DISTILLED DATASET")
     print("=" * 60)
