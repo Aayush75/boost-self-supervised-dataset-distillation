@@ -126,6 +126,16 @@ def distill():
                 c_aug_y = pca_repr.transform(aug_reprs)
                 C_aug_y_init.append(c_aug_y)
     
+    # Handle crop augmentations if specified
+    if 'crop_scales' in config['augmentations']:
+        random_crop = transforms.RandomResizedCrop(**config['augmentations']['random_crop'])
+        with torch.no_grad():
+            for scale in tqdm(config['augmentations']['crop_scales'], desc="Projecting crop representations"):
+                aug_images = random_crop(sample_images_torch)
+                aug_reprs = teacher_model(aug_images).cpu().numpy()
+                c_aug_y = pca_repr.transform(aug_reprs)
+                C_aug_y_init.append(c_aug_y)
+    
     # Handle gaussian blur augmentations if specified
     if 'gaussian_blur' in config['augmentations']:
         with torch.no_grad():
@@ -137,6 +147,7 @@ def distill():
                 C_aug_y_init.append(c_aug_y)
 
     init_params = {"B_x": B_x_init, "B_y": B_y_init, "C_x": C_x_init, "C_y": C_y_init, "C_aug_y": C_aug_y_init}
+    print(f"  ✓ Initialized {len(C_aug_y_init)} augmentation representations")
     distilled_data = DistilledData(init_params, config).to(device)
     
     init_total_time = time.time() - init_start
@@ -231,6 +242,12 @@ def distill():
         train_x = torch.cat(X_s_list_aug, dim=0)
         train_y = torch.cat([y.detach() for y in Y_s_list_aug], dim=0)
 
+        # Debug: Print shapes to verify they match
+        if step == 0:  # Only print on first step to avoid spam
+            print(f"Debug - train_x shape: {train_x.shape}, train_y shape: {train_y.shape}")
+            print(f"Debug - Number of image augmentations: {len(X_s_list_aug)}")
+            print(f"Debug - Number of repr augmentations: {len(Y_s_list_aug)}")
+
         pred_y = inner_model(train_x)
         loss_inner = F.mse_loss(pred_y, train_y)
         
@@ -275,6 +292,17 @@ def distill():
             ).to(device)
             approx_networks.append(net)
             aug_types.append('color_{}'.format(strength))
+    
+    # Crop networks
+    if 'crop_scales' in config['augmentations']:
+        for scale in config['augmentations']['crop_scales']:
+            net = ApproximationMLP(
+                num_repr_bases_V=config['parametrization']['repr_bases_V'],
+                hidden_dim=config['models']['approximation_mlp']['hidden_dim'],
+                num_layers=config['models']['approximation_mlp']['num_layers']
+            ).to(device)
+            approx_networks.append(net)
+            aug_types.append('crop_{}'.format(scale))
     
     # Gaussian blur networks
     if 'gaussian_blur' in config['augmentations']:
