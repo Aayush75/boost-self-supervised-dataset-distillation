@@ -7,6 +7,8 @@ data:
   name: "CIFAR100"
   path: "./data"
   resolution: [3, 32, 32]
+  num_classes: 100
+  full_dataset_size: 50000
 
 distillation:
   storage_budget_N: 100
@@ -43,3 +45,11 @@ saving:
 model_pool:
   size_L: 10
   inner_loop_steps_Z: 1000
+
+evaluation:
+  epochs: 1000
+  lr: 0.1
+  weight_decay: 1e-4
+  # Linear evaluation settings
+  linear_epochs: 100
+  linear_lr: 0.2

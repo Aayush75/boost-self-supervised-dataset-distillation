@@ -7,6 +7,8 @@ data:
   name: "STANFORD_DOGS"
   path: "./data"
   resolution: [3, 64, 64]  # Higher resolution than CIFAR-100, following paper's TinyImageNet/ImageNet approach
+  num_classes: 120
+  full_dataset_size: 12000 # From the official dataset page (120 breeds * 100 images/breed on avg)
 
 distillation:
   storage_budget_N: 240  # 2 images per class (120 classes × 2), following paper's approach
@@ -43,3 +45,11 @@ saving:
 model_pool:
   size_L: 10  # Same as CIFAR-100 following paper's consistency
   inner_loop_steps_Z: 1000  # Same as paper's approach
+
+evaluation:
+  epochs: 1000  # Following paper's approach for TinyImageNet
+  lr: 0.1
+  weight_decay: 1e-4
+  # Linear evaluation settings
+  linear_epochs: 100
+  linear_lr: 0.2

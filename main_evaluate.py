@@ -156,11 +156,16 @@ def pretrain_on_full_dataset(config, save_path=None):
     
     # Training setup
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4)
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+    optimizer = torch.optim.SGD(
+        model.parameters(), 
+        lr=config['evaluation']['lr'], 
+        momentum=0.9, 
+        weight_decay=config['evaluation']['weight_decay']
+    )
     criterion = nn.MSELoss()
     
     # Training loop
-    epochs = 1000
+    epochs = config['evaluation']['epochs']
     print(f"Training for {epochs} epochs...")
     
     model.train()
@@ -232,11 +237,16 @@ def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
     model = ResNet18FeatureExtractor(feature_dim=512).to(device)
     
     # Training setup
-    optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+    optimizer = torch.optim.SGD(
+        model.parameters(), 
+        lr=config['evaluation']['lr'], 
+        momentum=0.9, 
+        weight_decay=config['evaluation']['weight_decay']
+    )
     criterion = nn.MSELoss()
     
     # Training loop
-    epochs = 1000
+    epochs = config['evaluation']['epochs']
     print(f"Training for {epochs} epochs...")
     
     model.train()
@@ -285,16 +295,21 @@ def linear_evaluation(model, config, split='test'):
     
     # Create linear classifier (only this will be trained)
     feature_dim = 512  # ResNet18 feature dimension
-    num_classes = 100  # CIFAR100 has 100 classes
+    num_classes = config['data']['num_classes']
     linear_classifier = nn.Linear(feature_dim, num_classes).to(device)
     
     # Training setup for linear classifier only
-    optimizer = torch.optim.SGD(linear_classifier.parameters(), lr=0.2, momentum=0.9, weight_decay=0.0)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+    optimizer = torch.optim.SGD(
+        linear_classifier.parameters(), 
+        lr=config['evaluation']['linear_lr'], 
+        momentum=0.9, 
+        weight_decay=0.0
+    )
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['evaluation']['linear_epochs'])
     criterion = nn.CrossEntropyLoss()
     
     # Training loop for linear classifier
-    epochs = 100
+    epochs = config['evaluation']['linear_epochs']
     print(f"Training linear classifier for {epochs} epochs...")
     
     for epoch in range(epochs):
@@ -431,10 +446,13 @@ def evaluate_models(config_path):
     print(f"\nEfficiency Metrics:")
     print(f"  - Accuracy Retention: {accuracy_ratio:.4f} ({accuracy_ratio*100:.2f}%)")
     print(f"  - Training Time Ratio: {time_ratio:.4f} ({time_ratio*100:.2f}%)")
-    print(f"  - Dataset Size Reduction: {config['distillation']['storage_budget_N']}/50000 = {config['distillation']['storage_budget_N']/50000:.4f}")
+    
+    full_dataset_size = config['data']['full_dataset_size']
+    storage_budget = config['distillation']['storage_budget_N']
+    print(f"  - Dataset Size Reduction: {storage_budget}/{full_dataset_size} = {storage_budget/full_dataset_size:.4f}")
     
     # Additional analysis
-    dataset_compression = 50000 / config['distillation']['storage_budget_N']
+    dataset_compression = full_dataset_size / storage_budget
     efficiency_score = accuracy_ratio / time_ratio
     
     print(f"\nAdditional Analysis:")
