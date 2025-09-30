@@ -1,5 +1,6 @@
 import os
 import yaml
+import argparse
 import numpy as np
 import torch
 import torch.nn as nn
@@ -45,10 +46,30 @@ class DistilledData(nn.Module):
         aug_reprs = [c_aug @ self.B_y for c_aug in self.C_aug_y]
         return [base_repr] + aug_reprs
     
-def distill():
-    config_path = 'configs/cifar100.yaml'
+def distill(config_path=None):
+    """
+    Distill dataset using specified configuration file.
+    
+    Args:
+        config_path (str): Path to the configuration YAML file.
+                          If None, uses default CIFAR-100 config.
+    """
+    if config_path is None:
+        config_path = 'configs/cifar100.yaml'
+    
+    print(f"Loading configuration from: {config_path}")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
+    
+    print(f"Dataset: {config['data']['name']}")
+    print(f"Experiment: {config['experiment_name']}")
+    print(f"Storage Budget: {config['distillation']['storage_budget_N']} images")
+    print(f"Distilled Images: {config['distillation']['num_distilled_images_m']}")
+    print(f"Resolution: {config['data']['resolution']}")
+    print(f"Distillation Steps: {config['distillation']['steps']}")
+    print(f"Output Directory: {config['saving']['distilled_assets_dir']}")
+    print("-" * 60)
+    
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     os.makedirs(config['saving']['distilled_assets_dir'], exist_ok=True)
@@ -189,5 +210,49 @@ def distill():
         
     print(f"Distillation complete. Assets saved to: {asset_dir}")
 
+def main():
+    """Main function with command line argument parsing."""
+    parser = argparse.ArgumentParser(description='Self-Supervised Dataset Distillation')
+    parser.add_argument('--config', '-c', type=str, default='configs/cifar100.yaml',
+                        help='Path to the configuration YAML file (default: configs/cifar100.yaml)')
+    parser.add_argument('--list-configs', action='store_true',
+                        help='List available configuration files')
+    
+    args = parser.parse_args()
+    
+    # List available configs if requested
+    if args.list_configs:
+        print("Available configuration files:")
+        configs_dir = 'configs'
+        if os.path.exists(configs_dir):
+            for file in os.listdir(configs_dir):
+                if file.endswith('.yaml'):
+                    print(f"  - {os.path.join(configs_dir, file)}")
+        else:
+            print(f"  No configs directory found at: {configs_dir}")
+        return
+    
+    # Validate config file exists
+    if not os.path.exists(args.config):
+        print(f"Error: Configuration file not found: {args.config}")
+        print("Use --list-configs to see available configuration files.")
+        return
+    
+    # Start distillation
+    print("="*80)
+    print("SELF-SUPERVISED DATASET DISTILLATION")
+    print("Paper: Boost Self-Supervised Dataset Distillation via Parameterization,")
+    print("       Predefined Augmentation, and Approximation")
+    print("="*80)
+    
+    try:
+        distill(args.config)
+        print("\n" + "="*80)
+        print("✅ DISTILLATION COMPLETED SUCCESSFULLY!")
+        print("="*80)
+    except Exception as e:
+        print(f"\n❌ Error during distillation: {e}")
+        raise
+
 if __name__ == "__main__":
-    distill()
+    main()

@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -8,11 +9,13 @@ from torch.utils.data import DataLoader
 from torchvision.models import resnet18
 from tqdm import tqdm
 
+from utils import get_dataset
+
 class BarlowTwinsTransform:
-    def __init__(self):
+    def __init__(self, size=32, mean=[0.5071, 0.4867, 0.4408], std=[0.2675, 0.2565, 0.2761]):
         self.transforms = transforms.Compose([
             transforms.ToTensor(),
-            transforms.RandomResizedCrop(size=32,scale=(0.2,1.0)),
+            transforms.RandomResizedCrop(size=size,scale=(0.2,1.0)),
             transforms.RandomHorizontalFlip(p=0.5),
             transforms.RandomApply([
                 transforms.ColorJitter(brightness=0.4,contrast=0.4,saturation=0.2,hue=0.1)
@@ -21,8 +24,7 @@ class BarlowTwinsTransform:
             transforms.RandomApply([
                 transforms.GaussianBlur(kernel_size=3)
             ], p = 0.5),
-            transforms.Normalize(mean=[0.5071, 0.4867, 0.4408], 
-            std=[0.2675, 0.2565, 0.2761])
+            transforms.Normalize(mean=mean, std=std)
         ])
     
     def __call__(self,x):
@@ -60,19 +62,41 @@ class BarlowTwinsLoss(nn.Module):
         return loss
 
 def main():
+    dataset_name = "CIFAR100"
+    if len(sys.argv) > 1:
+        dataset_name = sys.argv[1].upper()
+
     print("Starting Teacher Model Pre-training...")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    epochs = 100
-    batch_size = 256
-    learning_rate = 1e-3
+    if dataset_name == "CIFAR100":
+        epochs = 100
+        batch_size = 256
+        learning_rate = 1e-3
+        size = 32
+        mean = [0.5071, 0.4867, 0.4408]
+        std = [0.2675, 0.2565, 0.2761]
+        save_path = os.path.join("./teacher_models", "resnet18_barlow_twins_cifar100.pth")
+    elif dataset_name == "STANFORD_DOGS":
+        epochs = 200  # More epochs for higher resolution and fine-grained dataset
+        batch_size = 128  # Smaller batch size for 64x64 images as per paper's approach
+        learning_rate = 1e-3  # Consistent with paper's approach across datasets
+        size = 64
+        # ImageNet normalization - paper uses this for transfer learning consistency
+        # This is standard practice for fine-tuning and transfer learning scenarios
+        mean = [0.485, 0.456, 0.406]  # ImageNet normalization values
+        std = [0.229, 0.224, 0.225]   # ImageNet normalization values
+        save_path = os.path.join("./teacher_models", "resnet18_barlow_twins_stanford_dogs.pth")
+    else:
+        raise ValueError(f"Unknown dataset: {dataset_name}")
+
     save_dir = "./teacher_models"
-    save_path = os.path.join(save_dir, "resnet18_barlow_twins_cifar100.pth")
     os.makedirs(save_dir, exist_ok=True)
 
-    train_dataset = CIFAR100(root='./data', train=True, download=True, transform=BarlowTwinsTransform())
+    train_dataset, _ = get_dataset(dataset_name)
+    train_dataset.transform = BarlowTwinsTransform(size=size, mean=mean, std=std)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
 
     backbone = resnet18()

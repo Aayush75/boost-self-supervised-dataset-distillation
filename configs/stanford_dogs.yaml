@@ -1,0 +1,45 @@
+# configs/stanford_dogs.yaml
+
+project_name: "boost-self-supervised-dataset-distillation"
+experiment_name: "stanford_dogs_distillation"
+
+data:
+  name: "STANFORD_DOGS"
+  path: "./data"
+  resolution: [3, 64, 64]  # Higher resolution than CIFAR-100, following paper's TinyImageNet/ImageNet approach
+
+distillation:
+  storage_budget_N: 240  # 2 images per class (120 classes × 2), following paper's approach
+  num_distilled_images_m: 240
+  steps: 20000  # Following paper's approach for 64x64 resolution (same as TinyImageNet)
+  optimizer:
+    name: "AdamW"
+    lr: 0.001
+    decay_type: "linear"
+
+parametrization:
+  image_bases_U: 400  # More bases for higher resolution, following paper's TinyImageNet settings
+  repr_bases_V: 400  # More representation bases for fine-grained features
+  image_basis_size: 16  # Same as paper's approach for higher resolution datasets
+  upsampling_scale: 4  # 16 → 64 (64/16 = 4), following paper's TinyImageNet/ImageNet approach
+
+models:
+  teacher:
+    arch: "ResNet18"
+    path: "./teacher_models/resnet18_barlow_twins_stanford_dogs.pth"
+    feature_dim: 512
+  inner_cnn:
+    channels: [128, 256, 512]  # 4-layer CNN for 64x64 resolution as mentioned in paper
+    feature_dim: 512
+  approximation_mlp:
+    hidden_dim: 16  # Larger hidden dimension for fine-grained features, following paper's TinyImageNet/ImageNet settings
+
+augmentations:
+  rotate: [90, 180, 270]  # Same rotations as used throughout the paper
+
+saving:
+  distilled_assets_dir: "./distilled_assets/stanford_dogs_N240"
+
+model_pool:
+  size_L: 10  # Same as CIFAR-100 following paper's consistency
+  inner_loop_steps_Z: 1000  # Same as paper's approach
