@@ -143,7 +143,7 @@ def pretrain_on_full_dataset(config, save_path=None):
     print("=" * 60)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_dataset, _ = get_dataset(config['data']['name'])
+    train_dataset, _ = get_dataset(config['data']['name'], data_dir='.')
     
     # Load teacher model to get target representations
     teacher_model = get_teacher_model(
@@ -276,7 +276,7 @@ def linear_evaluation(model, config, split='test'):
     model.eval()
     
     # Get datasets
-    train_dataset, test_dataset = get_dataset(config['data']['name'])
+    train_dataset, test_dataset = get_dataset(config['data']['name'], data_dir='.')
     print(f"Dataset sizes - Train: {len(train_dataset)}, Test: {len(test_dataset)}")
     
     # Create data loaders

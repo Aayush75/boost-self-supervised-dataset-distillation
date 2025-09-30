@@ -74,7 +74,7 @@ def train_on_full_dataset(config, save_path=None):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     # Get datasets
-    train_dataset, test_dataset = get_dataset(config['data']['name'])
+    train_dataset, test_dataset = get_dataset(config['data']['name'], data_dir='.')
     train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4)
     
@@ -154,7 +154,7 @@ def evaluate_model(model, config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.eval()
     
-    _, test_dataset = get_dataset(config['data']['name'])
+    _, test_dataset = get_dataset(config['data']['name'], data_dir='.')
     test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4)
     
     correct = 0
@@ -199,7 +199,7 @@ def train_on_distilled_dataset(config, asset_dir, save_path=None):
     print(f"Training for {epochs} epochs...")
     
     # Get test dataset for evaluation
-    _, test_dataset = get_dataset(config['data']['name'])
+    _, test_dataset = get_dataset(config['data']['name'], data_dir='.')
     test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=4)
     
     for epoch in range(epochs):

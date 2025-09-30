@@ -62,19 +62,12 @@ def distill(config_path=None):
         config = yaml.safe_load(f)
     
     print(f"Dataset: {config['data']['name']}")
-    print(f"Experiment: {config['experiment_name']}")
-    print(f"Storage Budget: {config['distillation']['storage_budget_N']} images")
-    print(f"Distilled Images: {config['distillation']['num_distilled_images_m']}")
-    print(f"Resolution: {config['data']['resolution']}")
-    print(f"Distillation Steps: {config['distillation']['steps']}")
-    print(f"Output Directory: {config['saving']['distilled_assets_dir']}")
-    print("-" * 60)
     
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     os.makedirs(config['saving']['distilled_assets_dir'], exist_ok=True)
     
-    train_dataset, _ = get_dataset(config['data']['name'])
+    train_dataset, _ = get_dataset(config['data']['name'], data_dir='.')
     teacher_model = get_teacher_model(config['models']['teacher']['path'], config['models']['teacher']['feature_dim']).to(device)
     
     print("Initializing distilled data parameters")
@@ -248,10 +241,10 @@ def main():
     try:
         distill(args.config)
         print("\n" + "="*80)
-        print("✅ DISTILLATION COMPLETED SUCCESSFULLY!")
+        print("DISTILLATION COMPLETED SUCCESSFULLY!")
         print("="*80)
     except Exception as e:
-        print(f"\n❌ Error during distillation: {e}")
+        print(f"\nError during distillation: {e}")
         raise
 
 if __name__ == "__main__":

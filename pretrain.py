@@ -80,14 +80,12 @@ def main():
         std = [0.2675, 0.2565, 0.2761]
         save_path = os.path.join("./teacher_models", "resnet18_barlow_twins_cifar100.pth")
     elif dataset_name == "STANFORD_DOGS":
-        epochs = 200  # More epochs for higher resolution and fine-grained dataset
-        batch_size = 128  # Smaller batch size for 64x64 images as per paper's approach
-        learning_rate = 1e-3  # Consistent with paper's approach across datasets
+        epochs = 200  
+        batch_size = 128 
+        learning_rate = 1e-3  
         size = 64
-        # ImageNet normalization - paper uses this for transfer learning consistency
-        # This is standard practice for fine-tuning and transfer learning scenarios
-        mean = [0.485, 0.456, 0.406]  # ImageNet normalization values
-        std = [0.229, 0.224, 0.225]   # ImageNet normalization values
+        mean = [0.485, 0.456, 0.406]  
+        std = [0.229, 0.224, 0.225]  
         save_path = os.path.join("./teacher_models", "resnet18_barlow_twins_stanford_dogs.pth")
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
@@ -95,7 +93,7 @@ def main():
     save_dir = "./teacher_models"
     os.makedirs(save_dir, exist_ok=True)
 
-    train_dataset, _ = get_dataset(dataset_name)
+    train_dataset, _ = get_dataset(dataset_name, data_dir='.')
     train_dataset.transform = BarlowTwinsTransform(size=size, mean=mean, std=std)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
 
