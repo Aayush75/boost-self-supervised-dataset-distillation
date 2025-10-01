@@ -13,6 +13,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report
 from tqdm import tqdm
 
+import argparse
 from utils import get_dataset
 from models import get_teacher_model, InnerCNN, ApproximationMLP
 from main_distill import DistilledData
@@ -137,9 +138,9 @@ class DistilledDatasetLoader:
         return train_images, train_targets
 
 def pretrain_on_full_dataset(config, save_path=None):
-    """Train a ResNet18 feature extractor on the full CIFAR100 dataset using MSE loss."""
+    """Train a ResNet18 feature extractor on the full dataset using MSE loss against the teacher."""
     print("=" * 60)
-    print("TRAINING RESNET18 ON FULL CIFAR100 DATASET")
+    print(f"TRAINING RESNET18 ON FULL {config['data']['name']} DATASET")
     print("=" * 60)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -152,7 +153,7 @@ def pretrain_on_full_dataset(config, save_path=None):
     ).to(device)
     
     # Create ResNet18 model
-    model = ResNet18FeatureExtractor(feature_dim=512).to(device)
+    model = ResNet18FeatureExtractor(feature_dim=config['models']['teacher']['feature_dim']).to(device)
     
     # Training setup
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4)
@@ -169,7 +170,7 @@ def pretrain_on_full_dataset(config, save_path=None):
     print(f"Training for {epochs} epochs...")
     
     model.train()
-    for epoch in tqdm(range(epochs), desc="Training on full dataset"):
+    for epoch in tqdm(range(epochs), desc=f"Training on full {config['data']['name']}"):
         total_loss = 0
         num_batches = 0
         
@@ -473,5 +474,9 @@ def evaluate_models(config_path):
     return results
 
 if __name__ == "__main__":
-    config_path = 'configs/cifar100.yaml'
-    results = evaluate_models(config_path)
+    parser = argparse.ArgumentParser(description="Evaluate distilled datasets.")
+    parser.add_argument('--config', type=str, required=True, help='Path to the configuration file (e.g., configs/stanford_dogs.yaml)')
+    
+    args = parser.parse_args()
+
+    evaluate_models(args.config)
