@@ -22,14 +22,14 @@ pip install torch torchvision tqdm pyyaml scikit-learn pillow numpy
 ```
 
 ### Stanford Dogs Dataset
-Download from Kaggle and place in:
+Download from [the official dataset page](http://vision.stanford.edu/aditya86/ImageNetDogs/) or [Kaggle](https://www.kaggle.com/c/dog-breed-identification/data). Unzip and place the `Images` folder such that the structure is:
 ```
-full_datasets/stanford-dogs/
-├── images/Images/
-│   ├── n02085620-Chihuahua/
-│   ├── n02085782-Japanese_spaniel/
-│   └── ... (120 breed folders)
-└── annotations/Annotation/
+./data/stanford-dogs/
+└── images/
+    └── Images/
+        ├── n02085620-Chihuahua/
+        ├── n02085782-Japanese_spaniel/
+        └── ... (120 breed folders)
 ```
 
 ## Usage

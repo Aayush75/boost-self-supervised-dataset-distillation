@@ -13,12 +13,12 @@ class StanfordDogsDataset(Dataset):
         self.transform = transform
         
         # Path to the actual dataset
-        self.images_dir = os.path.join(root, 'full_datasets', 'stanford-dogs', 'images', 'Images')
+        self.images_dir = os.path.join(root, 'data', 'stanford-dogs', 'images', 'Images')
         
         if not os.path.exists(self.images_dir):
             raise RuntimeError(
                 f"Stanford Dogs dataset not found at {self.images_dir}.\n"
-                f"Please ensure the dataset is downloaded to: {root}/full_datasets/stanford-dogs/"
+                f"Please ensure the dataset is downloaded to: {root}/data/stanford-dogs/"
             )
         
         # Load all samples
@@ -75,18 +75,19 @@ class StanfordDogsDataset(Dataset):
             
         return image, target
 
-def get_dataset(name,data_dir='./data'):
+def get_dataset(name, data_dir='.'):
     if name.upper() == "CIFAR100":
+        cifar_path = os.path.join(data_dir, 'data')
         transform = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize((0.5071,0.4867,0.4408), (0.2675,0.2565,0.2761))
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
         ])
 
-        train_dataset = datasets.CIFAR100(root=data_dir,train=True,download=True,
-        transform=transform)
+        train_dataset = datasets.CIFAR100(root=cifar_path, train=True, download=True,
+                                          transform=transform)
 
-        test_dataset = datasets.CIFAR100(root=data_dir,train=False,download=True,
-        transform=transform)
+        test_dataset = datasets.CIFAR100(root=cifar_path, train=False, download=True,
+                                         transform=transform)
 
         return train_dataset, test_dataset
     elif name.upper() == "STANFORD_DOGS":
@@ -96,11 +97,12 @@ def get_dataset(name,data_dir='./data'):
             transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
         ])
 
-        train_dataset = StanfordDogsDataset(root=data_dir,train=True,download=True,
-        transform=transform)
+        # The 'root' is passed to StanfordDogsDataset, which will construct the full path
+        train_dataset = StanfordDogsDataset(root=data_dir, train=True, download=True,
+                                            transform=transform)
 
-        test_dataset = StanfordDogsDataset(root=data_dir,train=False,download=True,
-        transform=transform)
+        test_dataset = StanfordDogsDataset(root=data_dir, train=False, download=True,
+                                           transform=transform)
 
         return train_dataset, test_dataset
     else:
