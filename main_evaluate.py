@@ -159,14 +159,14 @@ def pretrain_on_full_dataset(config, save_path=None):
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=4)
     optimizer = torch.optim.SGD(
         model.parameters(), 
-        lr=config['evaluation']['lr'], 
+        lr=float(config['evaluation']['lr']), 
         momentum=0.9, 
-        weight_decay=config['evaluation']['weight_decay']
+        weight_decay=float(config['evaluation']['weight_decay'])
     )
     criterion = nn.MSELoss()
     
     # Training loop
-    epochs = config['evaluation']['epochs']
+    epochs = int(config['evaluation']['epochs'])
     print(f"Training for {epochs} epochs...")
     
     model.train()
@@ -240,14 +240,14 @@ def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
     # Training setup
     optimizer = torch.optim.SGD(
         model.parameters(), 
-        lr=config['evaluation']['lr'], 
+        lr=float(config['evaluation']['lr']), 
         momentum=0.9, 
-        weight_decay=config['evaluation']['weight_decay']
+        weight_decay=float(config['evaluation']['weight_decay'])
     )
     criterion = nn.MSELoss()
     
     # Training loop
-    epochs = config['evaluation']['epochs']
+    epochs = int(config['evaluation']['epochs'])
     print(f"Training for {epochs} epochs...")
     
     model.train()
@@ -302,15 +302,15 @@ def linear_evaluation(model, config, split='test'):
     # Training setup for linear classifier only
     optimizer = torch.optim.SGD(
         linear_classifier.parameters(), 
-        lr=config['evaluation']['linear_lr'], 
+        lr=float(config['evaluation']['linear_lr']), 
         momentum=0.9, 
         weight_decay=0.0
     )
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['evaluation']['linear_epochs'])
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=int(config['evaluation']['linear_epochs']))
     criterion = nn.CrossEntropyLoss()
     
     # Training loop for linear classifier
-    epochs = config['evaluation']['linear_epochs']
+    epochs = int(config['evaluation']['linear_epochs'])
     print(f"Training linear classifier for {epochs} epochs...")
     
     for epoch in range(epochs):
