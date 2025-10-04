@@ -208,7 +208,7 @@ def pretrain_on_full_dataset(config, save_path=None):
 def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
     """Train a ResNet18 feature extractor on the distilled dataset with augmentations and approximation networks."""
     print("=" * 60)
-    print("TRAINING RESNET18 ON DISTILLED DATASET (WITH AUGMENTATIONS)")
+    print(f"TRAINING RESNET18 ON DISTILLED {config['data']['name']} DATASET (WITH AUGMENTATIONS)")
     print("=" * 60)
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -251,7 +251,7 @@ def pretrain_on_distilled_dataset(config, asset_dir, save_path=None):
     print(f"Training for {epochs} epochs...")
     
     model.train()
-    for epoch in tqdm(range(epochs), desc="Training on distilled dataset with augmentations"):
+    for epoch in tqdm(range(epochs), desc=f"Training on distilled {config['data']['name']} with augmentations"):
         # Forward pass on all training data (base + augmented)
         pred_repr = model.get_features(train_images)
         loss = criterion(pred_repr, train_targets)
@@ -397,7 +397,7 @@ def evaluate_models(config_path):
     
     # Train and evaluate model on full dataset
     print("\n" + "="*80)
-    print("EXPERIMENT 1: ResNet18 trained on FULL CIFAR100 dataset")
+    print(f"EXPERIMENT 1: ResNet18 trained on FULL {config['data']['name']} dataset")
     print("="*80)
     
     start_time = time.time()
@@ -413,7 +413,7 @@ def evaluate_models(config_path):
     
     # Train and evaluate model on distilled dataset
     print("\n" + "="*80)
-    print("EXPERIMENT 2: ResNet18 trained on DISTILLED dataset")
+    print(f"EXPERIMENT 2: ResNet18 trained on DISTILLED {config['data']['name']} dataset")
     print("="*80)
     
     start_time = time.time()
@@ -429,14 +429,14 @@ def evaluate_models(config_path):
     
     # Print comparison results
     print("\n" + "="*80)
-    print("EVALUATION RESULTS COMPARISON")
+    print(f"EVALUATION RESULTS COMPARISON FOR {config['data']['name']}")
     print("="*80)
     
-    print(f"Full Dataset Training:")
+    print(f"Full {config['data']['name']} Dataset Training:")
     print(f"  - Test Accuracy: {results['full_dataset']['accuracy']:.4f}")
     print(f"  - Training Time: {results['full_dataset']['training_time']:.2f} seconds")
     
-    print(f"\nDistilled Dataset Training:")
+    print(f"\nDistilled {config['data']['name']} Dataset Training:")
     print(f"  - Test Accuracy: {results['distilled_dataset']['accuracy']:.4f}")
     print(f"  - Training Time: {results['distilled_dataset']['training_time']:.2f} seconds")
     

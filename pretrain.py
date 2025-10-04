@@ -66,12 +66,20 @@ def main():
     if len(sys.argv) > 1:
         dataset_name = sys.argv[1].upper()
 
-    print("Starting Teacher Model Pre-training...")
+    print(f"Starting Teacher Model Pre-training for {dataset_name}...")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    if dataset_name == "CIFAR100":
+    if dataset_name == "CIFAR10":
+        epochs = 100
+        batch_size = 256
+        learning_rate = 1e-3
+        size = 32
+        mean = [0.4914, 0.4822, 0.4465]
+        std = [0.2023, 0.1994, 0.2010]
+        save_path = os.path.join("./teacher_models", "resnet18_barlow_twins_cifar10.pth")
+    elif dataset_name == "CIFAR100":
         epochs = 100
         batch_size = 256
         learning_rate = 1e-3
@@ -107,13 +115,13 @@ def main():
     loss_fn = BarlowTwinsLoss().to(device)
     optimizer = optim.AdamW(model.parameters(),lr=learning_rate,weight_decay=1e-5)
 
-    print("Starting Training Loop....")
+    print(f"Starting Training Loop for {dataset_name}...")
 
     for epoch in range(epochs):
         model.train()
         total_loss = 0
 
-        loop = tqdm(train_loader,desc=f"Epoch [{epoch+1}/{epochs}]",leave=False)
+        loop = tqdm(train_loader,desc=f"{dataset_name} Epoch [{epoch+1}/{epochs}]",leave=False)
 
         for (view1,view2), _ in loop:
             view1,view2 = view1.to(device),view2.to(device)
@@ -131,11 +139,11 @@ def main():
             loop.set_postfix(loss=loss.item())
 
         avg_loss = total_loss/len(train_loader)
-        print(f"Epoch [{epoch+1}/{epochs}] - Average Loss: {avg_loss:.4f}")
+        print(f"{dataset_name} Epoch [{epoch+1}/{epochs}] - Average Loss: {avg_loss:.4f}")
 
-    print("Training Complete. Saving Model....")
+    print(f"Training Complete for {dataset_name}. Saving Model...")
     torch.save(backbone.state_dict(),save_path)
-    print(f"Teacher model backbone saved to {save_path}")
+    print(f"Teacher model backbone for {dataset_name} saved to {save_path}")
 
 if __name__ == '__main__':
     main()

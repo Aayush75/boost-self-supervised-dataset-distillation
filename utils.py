@@ -5,6 +5,7 @@ from PIL import Image
 from torchvision import datasets, transforms
 from sklearn.decomposition import PCA
 from torch.utils.data import DataLoader, Dataset
+import pickle
 
 class StanfordDogsDataset(Dataset):
     def __init__(self, root, train=True, transform=None, download=False):
@@ -75,8 +76,62 @@ class StanfordDogsDataset(Dataset):
             
         return image, target
 
+class CIFAR10Dataset(Dataset):
+    """
+    Custom PyTorch Dataset class to load CIFAR-10 from the pickled batch files.
+    This is required for the format downloaded from the official website.
+    """
+    def __init__(self, root, train=True, transform=None, download=False):
+        self.root = os.path.join(root, 'data', 'cifar-10-python')
+        self.transform = transform
+        self.train = train
+
+        if self.train:
+            self.data = []
+            self.targets = []
+            for i in range(1, 6):
+                filepath = os.path.join(self.root, f'data_batch_{i}')
+                with open(filepath, 'rb') as f:
+                    entry = pickle.load(f, encoding='bytes')
+                    self.data.append(entry[b'data'])
+                    self.targets.extend(entry[b'labels'])
+            self.data = np.vstack(self.data).reshape(-1, 3, 32, 32)
+            self.data = self.data.transpose((0, 2, 3, 1))  # Convert to HWC
+        else:
+            filepath = os.path.join(self.root, 'test_batch')
+            with open(filepath, 'rb') as f:
+                entry = pickle.load(f, encoding='bytes')
+                self.data = entry[b'data'].reshape(-1, 3, 32, 32)
+                self.data = self.data.transpose((0, 2, 3, 1))  # Convert to HWC
+                self.targets = entry[b'labels']
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        img, target = self.data[idx], self.targets[idx]
+        img = Image.fromarray(img)
+
+        if self.transform:
+            img = self.transform(img)
+
+        return img, target
+
 def get_dataset(name, data_dir='.'):
-    if name.upper() == "CIFAR100":
+    if name.upper() == "CIFAR10":
+        # Normalization constants for CIFAR-10
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        ])
+        
+        # Use the custom CIFAR10Dataset loader
+        train_dataset = CIFAR10Dataset(root=data_dir, train=True, transform=transform)
+        test_dataset = CIFAR10Dataset(root=data_dir, train=False, transform=transform)
+
+        return train_dataset, test_dataset
+
+    elif name.upper() == "CIFAR100":
         cifar_path = os.path.join(data_dir, 'data')
         transform = transforms.Compose([
             transforms.ToTensor(),

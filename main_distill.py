@@ -84,18 +84,18 @@ def distill(config_path=None):
     all_reprs_np = []
     with torch.no_grad():
         repr_loader = DataLoader(train_dataset, batch_size=512, shuffle=False, num_workers=4)
-        for images, _ in tqdm(repr_loader, desc="Generating all teacher representations for PCA"):
+        for images, _ in tqdm(repr_loader, desc=f"Generating {config['data']['name']} teacher representations for PCA"):
             all_reprs_np.append(teacher_model(images.to(device)).cpu().numpy())
     all_reprs_np = np.concatenate(all_reprs_np)
     pca_repr = PCA(n_components=config['parametrization']['repr_bases_V'], random_state=42).fit(all_reprs_np)
     B_y_init = pca_repr.components_
     C_y_init = pca_repr.transform(all_reprs_np[sample_indices])
         
-    print("Initializing C_aug_y with augmented teacher representations")
+    print(f"Initializing C_aug_y with augmented {config['data']['name']} teacher representations")
     C_aug_y_init = []
     sample_images_torch = all_images_torch[sample_indices].to(device)
     with torch.no_grad():
-        for rot_angle in tqdm(config['augmentations']['rotate'], desc="Projecting augmentation representations"):
+        for rot_angle in tqdm(config['augmentations']['rotate'], desc=f"Projecting {config['data']['name']} augmentation representations"):
             aug_images = TF.rotate(sample_images_torch, angle=float(rot_angle))
             aug_reprs = teacher_model(aug_images).cpu().numpy()
             c_aug_y = pca_repr.transform(aug_reprs)
@@ -116,7 +116,7 @@ def distill(config_path=None):
     with torch.no_grad():
         real_reprs_target = teacher_model(real_images_outer)
         
-    for step in tqdm(range(config['distillation']['steps']), desc="Distilling Dataset"):
+    for step in tqdm(range(config['distillation']['steps']), desc=f"Distilling {config['data']['name']} Dataset"):
         distilled_data.train()
         pool_idx = np.random.randint(config['model_pool']['size_L'])
         inner_model = model_pool[pool_idx]
@@ -167,7 +167,7 @@ def distill(config_path=None):
             optimizers_pool[pool_idx] = torch.optim.SGD(model_pool[pool_idx].parameters(), lr=0.1, momentum=0.9)
             step_counters[pool_idx] = 0
         
-    print("\nTraining Approximation Networks")
+    print(f"\nTraining Approximation Networks for {config['data']['name']}")
     distilled_data.eval()
     approx_networks = [
         ApproximationMLP(
@@ -186,14 +186,14 @@ def distill(config_path=None):
             C_y_aug_target = distilled_data.C_aug_y[i]
             target_shift = C_y_aug_target - C_y_base_target
 
-        for epoch in tqdm(range(500), desc=f"Training Approximation Net for Rot {rot_angle} degrees"):
+        for epoch in tqdm(range(500), desc=f"Training {config['data']['name']} Approximation Net for Rot {rot_angle}°"):
             optimizer_approx.zero_grad()
             pred_shift = net(C_y_base_target)
             loss = F.mse_loss(pred_shift, target_shift)
             loss.backward()
             optimizer_approx.step()
 
-    print("Saving Distilled Assets")
+    print(f"Saving Distilled Assets for {config['data']['name']}")
     asset_dir = config['saving']['distilled_assets_dir']
     torch.save(distilled_data.state_dict(), os.path.join(asset_dir, 'distilled_data.pth'))
     
