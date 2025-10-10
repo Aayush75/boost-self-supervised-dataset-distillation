@@ -112,11 +112,19 @@ def distill(config_path=None):
     optimizers_pool = [torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9) for model in model_pool]
     step_counters = [0] * config['model_pool']['size_L']
     outer_loss_loader = DataLoader(train_dataset, batch_size=512, shuffle=True, num_workers=4)
-    real_images_outer = next(iter(outer_loss_loader))[0].to(device)
-    with torch.no_grad():
-        real_reprs_target = teacher_model(real_images_outer)
+    outer_loss_iter = iter(outer_loss_loader)
         
     for step in tqdm(range(config['distillation']['steps']), desc=f"Distilling {config['data']['name']} Dataset"):
+        # Sample a new batch of real data for each step
+        try:
+            real_images_outer = next(outer_loss_iter)[0].to(device)
+        except StopIteration:
+            outer_loss_iter = iter(outer_loss_loader)
+            real_images_outer = next(outer_loss_iter)[0].to(device)
+        
+        with torch.no_grad():
+            real_reprs_target = teacher_model(real_images_outer)
+        
         distilled_data.train()
         pool_idx = np.random.randint(config['model_pool']['size_L'])
         inner_model = model_pool[pool_idx]
