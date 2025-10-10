@@ -372,6 +372,35 @@ def linear_evaluation(model, config, split='test'):
     
     return accuracy
 
+def run_linear_eval_only(config_path, model_path):
+    """Run only linear evaluation on a pretrained model."""
+    print("=" * 60)
+    print("LINEAR EVALUATION ONLY MODE")
+    print("=" * 60)
+    
+    # Load config
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    
+    # Load model
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = ResNet18FeatureExtractor(feature_dim=512).to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    
+    print(f"Loaded pretrained model from: {model_path}")
+    print(f"Dataset: {config['data']['name']}")
+    
+    # Run linear evaluation
+    accuracy = linear_evaluation(model, config, split='test')
+    
+    print("\n" + "="*60)
+    print(f"LINEAR EVALUATION RESULT")
+    print("="*60)
+    print(f"Test Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+    print("="*60)
+    
+    return accuracy
+
 def evaluate_models(config_path):
     """Main evaluation function comparing full dataset vs distilled dataset training."""
     print("Starting Model Evaluation...")
@@ -476,7 +505,14 @@ def evaluate_models(config_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate distilled datasets.")
     parser.add_argument('--config', type=str, required=True, help='Path to the configuration file (e.g., configs/stanford_dogs.yaml)')
+    parser.add_argument('--linear-only', action='store_true', help='Run only linear evaluation on a pretrained model')
+    parser.add_argument('--model-path', type=str, help='Path to pretrained model (required when --linear-only is used)')
     
     args = parser.parse_args()
 
-    evaluate_models(args.config)
+    if args.linear_only:
+        if not args.model_path:
+            parser.error("--model-path is required when using --linear-only")
+        run_linear_eval_only(args.config, args.model_path)
+    else:
+        evaluate_models(args.config)
