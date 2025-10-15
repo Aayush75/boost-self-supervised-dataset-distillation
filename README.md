@@ -99,6 +99,26 @@ python main_distill.py --config configs/stanford_dogs.yaml
 python main_evaluate.py --config configs/stanford_dogs.yaml
 ```
 
+### Visualizing Distilled Images
+
+After distillation completes, you can visualize the synthesized images in a grid:
+
+```bash
+# CIFAR-10
+python visualize_distilled.py --config configs/cifar10.yaml
+
+# CIFAR-100
+python visualize_distilled.py --config configs/cifar100.yaml
+
+# Stanford Dogs
+python visualize_distilled.py --config configs/stanford_dogs.yaml
+
+# Optional: Specify custom output path and grid size
+python visualize_distilled.py --config configs/cifar100.yaml --output results/my_visualization.png --grid 10,10
+```
+
+This will create a grid visualization of all distilled images, similar to Figure 2 in the paper.
+
 ### Testing Dataset Loading (Optional)
 
 To verify that the Stanford Dogs dataset is correctly set up:
@@ -176,6 +196,7 @@ boost-self-supervised-dataset-distillation/
 ├── pretrain.py               # Teacher model pre-training (Barlow Twins)
 ├── main_evaluate.py          # Evaluation and comparison
 ├── run_evaluation.py         # Evaluation runner script
+├── visualize_distilled.py    # Visualize distilled images in a grid
 ├── test_stanford_dogs.py     # Dataset loading test for Stanford Dogs
 ├── utils.py                  # Dataset loaders and utilities
 ├── models.py                 # Neural network architectures
