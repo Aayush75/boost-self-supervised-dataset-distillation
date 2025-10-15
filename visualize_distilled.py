@@ -9,9 +9,12 @@ import os
 import yaml
 import argparse
 import torch
-import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Rectangle
+
+# Force matplotlib to use non-interactive backend (no GUI required)
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 from main_distill import DistilledData
 
