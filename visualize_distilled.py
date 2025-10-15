@@ -164,10 +164,6 @@ def visualize_distilled_images(config_path, output_path=None, grid_size=None):
             # Fill remaining cells with white
             ax.imshow(np.ones_like(images[0].permute(1, 2, 0).numpy()))
     
-    # Add title
-    title = f"{dataset_name} Distilled Images (N={num_images})"
-    fig.suptitle(title, fontsize=16, y=0.98)
-    
     # Save or show
     if output_path:
         os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else '.', exist_ok=True)
