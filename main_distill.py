@@ -63,6 +63,11 @@ def distill(config_path=None):
     
     print(f"Dataset: {config['data']['name']}")
     
+    # Check augmentation mode early
+    aug_config = config.get('augmentations', {})
+    use_optimal = aug_config.get('use_optimal', True)
+    print(f"Augmentation mode: {'Optimal' if use_optimal else 'Predefined rotations'}")
+    
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
     os.makedirs(config['saving']['distilled_assets_dir'], exist_ok=True)
@@ -91,15 +96,41 @@ def distill(config_path=None):
     B_y_init = pca_repr.components_
     C_y_init = pca_repr.transform(all_reprs_np[sample_indices])
         
-    print(f"Initializing C_aug_y with augmented {config['data']['name']} teacher representations")
+    if use_optimal:
+        print(f"Initializing C_aug_y with optimal augmented {config['data']['name']} teacher representations")
+    else:
+        print(f"Initializing C_aug_y with predefined augmented {config['data']['name']} teacher representations")
+    
     C_aug_y_init = []
     sample_images_torch = all_images_torch[sample_indices].to(device)
-    with torch.no_grad():
-        for rot_angle in tqdm(config['augmentations']['rotate'], desc=f"Projecting {config['data']['name']} augmentation representations"):
-            aug_images = TF.rotate(sample_images_torch, angle=float(rot_angle))
-            aug_reprs = teacher_model(aug_images).cpu().numpy()
+    
+    if use_optimal:
+        # Use optimal augmentations
+        from optimal_augmentation_adapter import get_optimal_augmentations_for_distillation
+        num_augmentations = aug_config.get('num_augmentations', 3)
+        augmented_reprs_list = get_optimal_augmentations_for_distillation(
+            sample_images_torch,
+            teacher_model,
+            device=device,
+            kernel_type=aug_config.get('kernel_type', 'rbf'),
+            kernel_params=aug_config.get('kernel_params', None),
+            lambda_ridge=aug_config.get('lambda_ridge', 1.0),
+            mu_p=aug_config.get('mu_p', 1.0),
+            num_augmentations=num_augmentations
+        )
+        
+        # Project augmented representations to PCA space
+        for aug_reprs in augmented_reprs_list:
             c_aug_y = pca_repr.transform(aug_reprs)
             C_aug_y_init.append(c_aug_y)
+    else:
+        # Use predefined rotation augmentations (legacy mode)
+        with torch.no_grad():
+            for rot_angle in tqdm(aug_config['rotate'], desc=f"Projecting {config['data']['name']} augmentation representations"):
+                aug_images = TF.rotate(sample_images_torch, angle=float(rot_angle))
+                aug_reprs = teacher_model(aug_images).cpu().numpy()
+                c_aug_y = pca_repr.transform(aug_reprs)
+                C_aug_y_init.append(c_aug_y)
 
     init_params = {"B_x": B_x_init, "B_y": B_y_init, "C_x": C_x_init, "C_y": C_y_init, "C_aug_y": C_aug_y_init}
     distilled_data = DistilledData(init_params, config).to(device)
@@ -153,9 +184,18 @@ def distill(config_path=None):
         optimizer_inner = optimizers_pool[pool_idx]
 
         X_s_list_aug = [X_s_base.detach()]
-        for rot_angle in config['augmentations']['rotate']:
-            aug_images = TF.rotate(X_s_base.detach(), angle=float(rot_angle))
-            X_s_list_aug.append(aug_images)
+        
+        if use_optimal:
+            # Use optimal augmentations
+            from optimal_augmentation_adapter import apply_optimal_augmentations
+            num_augmentations = aug_config.get('num_augmentations', 3)
+            optimal_augmented = apply_optimal_augmentations(X_s_base.detach(), num_augmentations=num_augmentations)
+            X_s_list_aug.extend(optimal_augmented)
+        else:
+            # Use predefined rotation augmentations (legacy mode)
+            for rot_angle in aug_config['rotate']:
+                aug_images = TF.rotate(X_s_base.detach(), angle=float(rot_angle))
+                X_s_list_aug.append(aug_images)
         
         Y_s_list_aug = distilled_data.reconstruct_representations()
         

@@ -37,7 +37,17 @@ models:
     hidden_dim: 4
 
 augmentations:
-  rotate: [90, 180, 270]
+  # Optimal augmentation parameters (replaces predefined rotations)
+  use_optimal: true  # Set to false to use predefined rotations
+  num_augmentations: 3  # Number of optimal augmentations to generate
+  kernel_type: "rbf"  # Options: 'rbf', 'linear', 'polynomial'
+  kernel_params:  # Kernel-specific parameters
+    gamma: 1.0e-5  # For RBF kernel
+  lambda_ridge: 1.0  # Ridge regularization parameter
+  mu_p: 1.0  # Pre-image solver parameter
+  
+  # Legacy predefined augmentation (for backward compatibility)
+  rotate: [90, 180, 270]  # Only used if use_optimal is false
 
 saving:
   distilled_assets_dir: "./distilled_assets/cifar100_N100"
