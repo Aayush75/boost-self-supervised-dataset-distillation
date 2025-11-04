@@ -140,7 +140,8 @@ def distill(config_path=None):
     scheduler = LambdaLR(optimizer_distill, lr_lambda=lr_schedule)
     
     model_pool = [InnerCNN(feature_dim=config['models']['inner_cnn']['feature_dim']).to(device) for _ in range(config['model_pool']['size_L'])]
-    optimizers_pool = [torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9) for model in model_pool]
+    # Add weight decay to prevent overfitting and improve generalization
+    optimizers_pool = [torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4) for model in model_pool]
     step_counters = [0] * config['model_pool']['size_L']
     outer_loss_loader = DataLoader(train_dataset, batch_size=512, shuffle=True, num_workers=4)
     outer_loss_iter = iter(outer_loss_loader)
@@ -162,14 +163,32 @@ def distill(config_path=None):
         
         inner_model.eval()
         X_s_base = distilled_data.reconstruct_images()
+        
+        # Clamp distilled images to valid range to prevent numerical issues
+        X_s_base = torch.clamp(X_s_base, 0, 1)
+        
         Y_s_base = distilled_data.reconstruct_representations()[0]
         
         with torch.no_grad():
             f_w_X_t = inner_model(real_images_outer)
+            # L2 normalize features to prevent collapse and improve conditioning
+            f_w_X_t = F.normalize(f_w_X_t, p=2, dim=1)
+            
         f_w_X_s = inner_model(X_s_base)
+        # L2 normalize features to prevent collapse and improve conditioning
+        f_w_X_s = F.normalize(f_w_X_s, p=2, dim=1)
         
+        # Compute kernel matrix with normalized features
         K_ss = f_w_X_s @ f_w_X_s.T
-        krr_weights = torch.linalg.solve(K_ss + 1e-4 * torch.eye(K_ss.size(0), device=device), Y_s_base)
+        
+        # Use stronger regularization to ensure matrix is well-conditioned
+        # Increased from 1e-4 to 1e-3 for better numerical stability
+        regularization = 1e-3
+        K_ss_reg = K_ss + regularization * torch.eye(K_ss.size(0), device=device)
+        
+        # Solve the linear system robustly
+        krr_weights = torch.linalg.solve(K_ss_reg, Y_s_base)
+        
         K_ts = f_w_X_t @ f_w_X_s.T
         pred_reprs_outer = K_ts @ krr_weights
 
@@ -177,6 +196,10 @@ def distill(config_path=None):
         
         optimizer_distill.zero_grad()
         loss_outer.backward()
+        
+        # Gradient clipping to prevent explosion
+        torch.nn.utils.clip_grad_norm_(distilled_data.parameters(), max_norm=1.0)
+        
         optimizer_distill.step()
         scheduler.step()
         
@@ -207,12 +230,16 @@ def distill(config_path=None):
         
         optimizer_inner.zero_grad()
         loss_inner.backward()
+        
+        # Gradient clipping for inner model to prevent gradient explosion
+        torch.nn.utils.clip_grad_norm_(inner_model.parameters(), max_norm=1.0)
+        
         optimizer_inner.step()
 
         step_counters[pool_idx] += 1
         if step_counters[pool_idx] >= config['model_pool']['inner_loop_steps_Z']:
             model_pool[pool_idx] = InnerCNN(feature_dim=config['models']['inner_cnn']['feature_dim']).to(device)
-            optimizers_pool[pool_idx] = torch.optim.SGD(model_pool[pool_idx].parameters(), lr=0.1, momentum=0.9)
+            optimizers_pool[pool_idx] = torch.optim.SGD(model_pool[pool_idx].parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
             step_counters[pool_idx] = 0
         
     print(f"\nTraining Approximation Networks for {config['data']['name']}")
