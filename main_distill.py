@@ -105,24 +105,44 @@ def distill(config_path=None):
     sample_images_torch = all_images_torch[sample_indices].to(device)
     
     if use_optimal:
-        # Use optimal augmentations
-        from optimal_augmentation_adapter import get_optimal_augmentations_for_distillation
+        # Load pre-generated optimal augmented images
         num_augmentations = aug_config.get('num_augmentations', 3)
-        augmented_reprs_list = get_optimal_augmentations_for_distillation(
-            sample_images_torch,
-            teacher_model,
-            device=device,
-            kernel_type=aug_config.get('kernel_type', 'rbf'),
-            kernel_params=aug_config.get('kernel_params', None),
-            lambda_ridge=aug_config.get('lambda_ridge', 1.0),
-            mu_p=aug_config.get('mu_p', 1.0),
-            num_augmentations=num_augmentations
-        )
+        optimal_aug_dir = f"./optimal_augmentations/{config['data']['name'].lower()}"
         
-        # Project augmented representations to PCA space
-        for aug_reprs in augmented_reprs_list:
+        print(f"Loading pre-generated optimal augmentations from: {optimal_aug_dir}")
+        
+        if not os.path.exists(optimal_aug_dir):
+            raise FileNotFoundError(
+                f"Optimal augmentation directory not found: {optimal_aug_dir}\n"
+                f"Please run first: python generate_optimal_augmentations.py --config {config_path}"
+            )
+        
+        # Load pre-generated augmented images for the sampled indices
+        for aug_idx in range(num_augmentations):
+            aug_file = os.path.join(optimal_aug_dir, f'augmented_images_{aug_idx+1}.npy')
+            
+            if not os.path.exists(aug_file):
+                raise FileNotFoundError(
+                    f"Augmented images file not found: {aug_file}\n"
+                    f"Please run first: python generate_optimal_augmentations.py --config {config_path}"
+                )
+            
+            print(f"  Loading augmentation {aug_idx+1}/{num_augmentations} from {aug_file}")
+            
+            # Load full augmented dataset and select sampled indices
+            all_aug_images = np.load(aug_file)
+            aug_images_sampled = all_aug_images[sample_indices]
+            
+            # Convert to torch and get representations
+            aug_images_torch = torch.from_numpy(aug_images_sampled).float().to(device)
+            with torch.no_grad():
+                aug_reprs = teacher_model(aug_images_torch).cpu().numpy()
+            
+            # Project to PCA space
             c_aug_y = pca_repr.transform(aug_reprs)
             C_aug_y_init.append(c_aug_y)
+        
+        print(f"✓ Loaded {num_augmentations} pre-generated optimal augmentations")
     else:
         # Use predefined rotation augmentations (legacy mode)
         with torch.no_grad():
@@ -208,17 +228,11 @@ def distill(config_path=None):
 
         X_s_list_aug = [X_s_base.detach()]
         
-        if use_optimal:
-            # Use optimal augmentations
-            from optimal_augmentation_adapter import apply_optimal_augmentations
-            num_augmentations = aug_config.get('num_augmentations', 3)
-            optimal_augmented = apply_optimal_augmentations(X_s_base.detach(), num_augmentations=num_augmentations)
-            X_s_list_aug.extend(optimal_augmented)
-        else:
-            # Use predefined rotation augmentations (legacy mode)
-            for rot_angle in aug_config['rotate']:
-                aug_images = TF.rotate(X_s_base.detach(), angle=float(rot_angle))
-                X_s_list_aug.append(aug_images)
+        # For training loop, always use simple geometric augmentations
+        # (Optimal augmentations are used only for initialization)
+        for rot_angle in aug_config.get('rotate', [90, 180, 270]):
+            aug_images = TF.rotate(X_s_base.detach(), angle=float(rot_angle))
+            X_s_list_aug.append(aug_images)
         
         Y_s_list_aug = distilled_data.reconstruct_representations()
         
